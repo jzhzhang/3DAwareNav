@@ -69,7 +69,11 @@ def main():
         episode_success = []
         episode_spl = []
         episode_dist = []
+        episode_softspl = []
+        episode_agent_success = []
         for _ in range(args.num_processes):
+            episode_softspl.append(deque(maxlen=num_episodes))
+            episode_agent_success.append(deque(maxlen=num_episodes))
             episode_success.append(deque(maxlen=num_episodes))
             episode_spl.append(deque(maxlen=num_episodes))
             episode_dist.append(deque(maxlen=num_episodes))
@@ -78,6 +82,9 @@ def main():
         episode_success = deque(maxlen=1000)
         episode_spl = deque(maxlen=1000)
         episode_dist = deque(maxlen=1000)
+        episode_softspl = deque(maxlen=1000)
+        episode_agent_success = deque(maxlen=1000)
+
 
     finished = np.zeros((args.num_processes))
     wait_env = np.zeros((args.num_processes))
@@ -371,7 +378,7 @@ def main():
                                                 ].argmax(0).cpu().numpy()
 
     obs, _, done, infos = envs.plan_act_and_preprocess(planner_inputs)
-
+    # print(infos)
     start = time.time()
     g_reward = 0
 
@@ -397,18 +404,32 @@ def main():
                 spl = infos[e]['spl']
                 success = infos[e]['success']
                 dist = infos[e]['distance_to_goal']
+
+                agent_success = infos[e]['agent_success']
+                softspl = infos[e]['softspl']
+
                 spl_per_category[infos[e]['goal_name']].append(spl)
                 success_per_category[infos[e]['goal_name']].append(success)
+
+
                 if args.eval:
                     episode_success[e].append(success)
                     episode_spl[e].append(spl)
                     episode_dist[e].append(dist)
+                    episode_agent_success[e].append(agent_success)
+                    episode_softspl[e].append(softspl)
+
                     if len(episode_success[e]) == num_episodes:
                         finished[e] = 1
                 else:
                     episode_success.append(success)
                     episode_spl.append(spl)
                     episode_dist.append(dist)
+                    episode_agent_success.append(agent_success)
+                    episode_softspl.append(softspl)
+
+
+
                 wait_env[e] = 1.
                 update_intrinsic_rew(e)
                 init_map_and_pose_for_env(e)
@@ -678,12 +699,16 @@ def main():
                     log_wr.writer.add_scalar("train/statistic/succ", np.mean(episode_success) , step)
                     log_wr.writer.add_scalar("train/statistic/spl", np.mean(episode_spl), step)
                     log_wr.writer.add_scalar("train/statistic/dtg", np.mean(episode_dist) , step)
+                    log_wr.writer.add_scalar("train/statistic/softspl", np.mean(episode_softspl) , step)
+                    log_wr.writer.add_scalar("train/statistic/agent_success", np.mean(episode_agent_success) , step)
 
 
                     log += " {:.3f}/{:.3f}/{:.3f}({:.0f}),".format(
                         np.mean(episode_success),
                         np.mean(episode_spl),
                         np.mean(episode_dist),
+                        np.mean(episode_softspl),
+                        np.mean(episode_agent_success),
                         len(episode_spl))
 
             log += "\n\tLosses:"

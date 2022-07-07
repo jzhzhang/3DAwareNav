@@ -77,6 +77,9 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.info['distance_to_goal'] = None
         self.info['spl'] = None
         self.info['success'] = None
+        self.info['softspl'] = None
+        self.info['agent_success'] = None
+
 
     def load_new_episode(self):
         """The function loads a fixed episode from the episode dataset. This
@@ -245,7 +248,7 @@ class ObjectGoal_Env(habitat.RLEnv):
         if action == 0:
             self.stopped = True
             # Not sending stop to simulator, resetting manually
-            action = 3
+            # action = 3
 
         obs, rew, done, _ = super().step(action)
 
@@ -258,21 +261,28 @@ class ObjectGoal_Env(habitat.RLEnv):
 
         self.path_length += pu.get_l2_distance(0, dx, 0, dy)
 
-        spl, success, dist = 0., 0., 0.
+        softspl, spl, success, agent_success, dist = 0., 0., 0., 0., 0.
         if done:
-            spl, success, dist = self.get_metrics()
+            spl, softspl, success, dist = self.get_metrics()
             self.info['distance_to_goal'] = dist
             self.info['spl'] = spl
+            self.info['softspl'] = softspl
             self.info['success'] = success
 
-            if self.timestep<450:
-                self.info['success'] = 1
+            if self.timestep<490:
+                self.info['agent_success'] = 1
             # print("dist", dist)
             # print("spl", spl)
             # print("success", success)
+        else:
+            spl, softspl, success, dist = self.get_metrics()
+            self.info['distance_to_goal'] = dist
+            self.info['spl'] = spl
+            self.info['softspl'] = softspl
+            self.info['success'] = success                
+            self.info['agent_success'] = agent_success                
 
-        self.get_metrics()
-                # print("success!!!")
+            # print("success!!!")
             # exit(0)
 
 
@@ -330,6 +340,8 @@ class ObjectGoal_Env(habitat.RLEnv):
         dist = self._env.get_metrics()["distance_to_goal"]
         softspl = self._env.get_metrics()["softspl"]
         success = self._env.get_metrics()["success"]
+        spl = self._env.get_metrics()["spl"]
+
         # print（）
         # print("success ",success)
 
@@ -339,11 +351,9 @@ class ObjectGoal_Env(habitat.RLEnv):
         # else:
         #     success = 0
         # spl = min(success * self.starting_distance / self.path_length, 1)
-        return softspl, success, dist
+        return spl, softspl, success, dist
 
     def get_done(self, observations):
-
-
 
         if self.info['time'] >= self.args.max_episode_length - 1:
             done = True

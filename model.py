@@ -154,7 +154,8 @@ class Semantic_Mapping(nn.Module):
 
     def __init__(self, args):
         super(Semantic_Mapping, self).__init__()
-
+        print(args.device)
+        # exit(0)
         self.device = args.device
         self.screen_h = args.frame_height
         self.screen_w = args.frame_width

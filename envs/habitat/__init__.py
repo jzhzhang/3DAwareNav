@@ -94,7 +94,7 @@ def construct_envs(args):
             scene_split_sizes[i] += 1
 
 
-    gpu_visible_devices = [1, 2, 3, 4]
+    gpu_visible_devices = [1,1,1,1,1,1,1,1,1,1]
 
     print("Scenes per thread:")
     for i in range(args.num_processes):
