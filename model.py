@@ -16,7 +16,7 @@ from utils.ply import write_ply_xyz, write_ply_xyz_rgb
 
 class Goal_Oriented_Semantic_Policy(NNBase):
 
-    def __init__(self, input_map_shape, input_points_shape, recurrent=False, hidden_size=512,
+    def __init__(self, input_map_shape, input_entropy_shape, input_goal_shape, recurrent=False, hidden_size=512,
                  num_sem_categories=6):
         super(Goal_Oriented_Semantic_Policy, self).__init__(
             recurrent, hidden_size, hidden_size)
@@ -24,7 +24,8 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         out_size = int(input_map_shape[1] / 16.) * int(input_map_shape[2] / 16.)
 
 
-        self.pointEncoder = PointNetEncoder(global_feat=True, feature_transform=True, channel = 7)
+        self.point_entropy_Encoder = PointNetEncoder(global_feat=True, feature_transform=True, channel = 4)
+        self.point_goal_Encoder = PointNetEncoder(global_feat=True, feature_transform=True, channel = 4)
 
         self.main = nn.Sequential(
             nn.MaxPool2d(2),
@@ -44,16 +45,19 @@ class Goal_Oriented_Semantic_Policy(NNBase):
             Flatten()
         )
 
-        self.linear1 = nn.Linear(out_size * 32 + 8 * 2 + 1024, hidden_size)
+        self.linear1 = nn.Linear(out_size * 32 + 8 * 2 + 1024 + 1024, hidden_size)
         self.linear2 = nn.Linear(hidden_size, 256)
         self.critic_linear = nn.Linear(256, 1)
         self.orientation_emb = nn.Embedding(72, 8)
         self.goal_emb = nn.Embedding(num_sem_categories, 8)
         self.train()
 
-    def forward(self, inputs_map, input_points, rnn_hxs, masks, extras):
+    def forward(self, inputs_map, input_entropy_points, input_goal_points, rnn_hxs, masks, extras):
         x = self.main(inputs_map)
-        points_x, _ , _  = self.pointEncoder(input_points)
+        points_entropy_x, _ , _  = self.point_entropy_Encoder(input_entropy_points)
+        points_goal_x, _ , _  = self.point_goal_Encoder(input_goal_points)
+
+
         orientation_emb = self.orientation_emb(extras[:, 0])
         goal_emb = self.goal_emb(extras[:, 1])
 
@@ -63,7 +67,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         # print(points_x.shape)
 
 
-        x = torch.cat((x, orientation_emb, goal_emb, points_x), 1)
+        x = torch.cat((x, orientation_emb, goal_emb, points_entropy_x, points_goal_x), 1)
         # print("shape", x.shape)
         # print("learning========================================================")
         x = nn.ReLU()(self.linear1(x))
@@ -78,7 +82,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
 # https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail/blob/master/a2c_ppo_acktr/model.py#L15
 class RL_Policy(nn.Module):
 
-    def __init__(self, obs_map_shape, obs_points_shape, action_space, model_type=0,
+    def __init__(self, obs_map_shape, obs_entropy_points_shape, obs_goal_points_shape, action_space, model_type=0,
                  base_kwargs=None):
 
         super(RL_Policy, self).__init__()
@@ -87,7 +91,7 @@ class RL_Policy(nn.Module):
 
         if model_type == 1:
             self.network = Goal_Oriented_Semantic_Policy(
-                obs_map_shape, obs_points_shape, **base_kwargs)
+                obs_map_shape, obs_entropy_points_shape, obs_goal_points_shape, **base_kwargs)
         else:
             raise NotImplementedError
 
@@ -111,15 +115,15 @@ class RL_Policy(nn.Module):
         """Size of rnn_hx."""
         return self.network.rec_state_size
 
-    def forward(self, inputs_map, inputs_points, rnn_hxs, masks, extras):
+    def forward(self, inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, extras):
         if extras is None:
-            return self.network(inputs_map, inputs_points, rnn_hxs, masks)
+            return self.network(inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks)
         else:
-            return self.network(inputs_map, inputs_points, rnn_hxs, masks, extras)
+            return self.network(inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, extras)
 
-    def act(self, inputs_map, inputs_points, rnn_hxs, masks, extras=None, deterministic=False):
+    def act(self, inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, extras=None, deterministic=False):
 
-        value, actor_features, rnn_hxs = self(inputs_map, inputs_points, rnn_hxs, masks, extras)
+        value, actor_features, rnn_hxs = self(inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, extras)
         dist = self.dist(actor_features)
 
         if deterministic:
@@ -131,13 +135,13 @@ class RL_Policy(nn.Module):
 
         return value, action, action_log_probs, rnn_hxs
 
-    def get_value(self, inputs_map, inputs_points, rnn_hxs, masks, extras=None):
-        value, _, _ = self(inputs_map, inputs_points, rnn_hxs, masks, extras)
+    def get_value(self, inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, extras=None):
+        value, _, _ = self(inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, extras)
         return value
 
-    def evaluate_actions(self, inputs_map, inputs_points, rnn_hxs, masks, action, extras=None):
+    def evaluate_actions(self, inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, action, extras=None):
 
-        value, actor_features, rnn_hxs = self(inputs_map, inputs_points, rnn_hxs, masks, extras)
+        value, actor_features, rnn_hxs = self(inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, extras)
         dist = self.dist(actor_features)
 
         action_log_probs = dist.log_probs(action)
@@ -196,7 +200,7 @@ class Semantic_Mapping(nn.Module):
 
         self.save_points_count = 0
 
-    def forward(self, obs, pose_obs, maps_last, poses_last, origins, full_map_points, goal_cat_id):
+    def forward(self, obs, pose_obs, maps_last, poses_last, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id):
         bs, c, h, w = obs.size()
         depth = obs[:, 3, :, :]
         # depth[depth>500] =0
@@ -262,10 +266,10 @@ class Semantic_Mapping(nn.Module):
 
         pose_pred = poses_last
 
-        agent_view = torch.zeros(bs, c - 1,
+        agent_view = torch.zeros(bs, c - 2,     
                                  self.map_size_cm // self.resolution,
                                  self.map_size_cm // self.resolution
-                                 ).to(self.device)
+                                 ).to(self.device)  # -2 including, entropy, goal
 
         x1 = self.map_size_cm // (self.resolution * 2) - self.vision_range // 2
         x2 = x1 + self.vision_range
@@ -350,13 +354,18 @@ class Semantic_Mapping(nn.Module):
             # print("non_zero_row",non_zero_row.shape)
 
 
-            world_view_rgb = obs[e, :3, :, :].permute(1,2,0).reshape(-1,3)
-            world_view_rgb = world_view_rgb[non_zero_row].transpose(1,0)
+            # world_view_rgb = obs[e, :3, :, :].permute(1,2,0).reshape(-1,3)
+            # world_view_rgb = world_view_rgb[non_zero_row].transpose(1,0)
 
             # print("rgb", world_view_rgb.shape)
 
-            world_view_entropy = obs[e, -1, :, :].reshape(-1)
+            world_view_entropy = obs[e, -2, :, :].reshape(-1)
             world_view_entropy = world_view_entropy[non_zero_row]
+
+
+            world_view_goal = obs[e, -1, :, :].reshape(-1)
+            world_view_goal= world_view_goal[non_zero_row]
+
             # print("entropy", world_view_entropy.shape)
             # print("max entropy", torch.max(world_view_entropy))
 
@@ -365,33 +374,49 @@ class Semantic_Mapping(nn.Module):
 
 
             # new obs view feature
-            wolrd_points = torch.cat((world_view_t[non_zero_row].transpose(1,0) / self.resolution, world_view_rgb, world_view_entropy[None,:]), 0)
+            wolrd_points_entropy = torch.cat((world_view_t[non_zero_row].transpose(1,0) / self.resolution, world_view_entropy[None,:]), 0)
+            wolrd_points_goal = torch.cat((world_view_t[non_zero_row].transpose(1,0) / self.resolution, world_view_goal[None,:]), 0)
+
+
+
             # print("wolrd_points shape", wolrd_points.shape)
 
             # print("full_map_points_1",full_map_points[:,-1,:])
 
 
-            if wolrd_points.shape[1]<4096:
+            if wolrd_points_entropy.shape[1]<4096 or wolrd_points_goal.shape[1]<4096:
                 continue
             
                 # write_ply_xyz_rgb(world_view_t.transpose(1,0).cpu().numpy(), world_view_rgb.transpose(1,0).cpu().numpy(), "/home/jiazhao/code/navigation/results/world_view_rgb_"+str(self.save_points_count)+".ply")
             # elif torch.max(full_map_points[e, ...]) == 0:
                 # print("init frame")
                 # world_view_entropy 
-            current_view_idx = world_view_entropy.multinomial(num_samples=4096)
+
+
+            # print("xx", world_view_goal/torch.sum(world_view_goal))
+            entyopy_sampling_idx = world_view_entropy.multinomial(num_samples=4096)
+            goal_sampling_idx = (world_view_goal/torch.sum(world_view_goal)).multinomial(num_samples=4096)
+
+
             # indices = torch.randperm(wolrd_points.shape[1])[:4096]
             # full_map_points[e, ...] = wolrd_points[:,idx]
 
-            if torch.max(full_map_points[e, ...]) != 0:
+            if torch.max(full_map_entropy_points[e, ...]) != 0:
 
-                tmp_full_map_points = torch.cat( (full_map_points[e,:,:], wolrd_points[:, current_view_idx]), 1)
-                idx = tmp_full_map_points[-1, :].multinomial(num_samples=4096)
-                full_map_points[e, ...] = tmp_full_map_points[:, idx]
-                # indices = torch.randperm(wolrd_points.shape[1])[:2048]
-                # indices_full_map = torch.randperm(full_map_points.shape[2])[:2048]
-                # full_map_points[e, ...] = torch.cat( (full_map_points[e,:,indices_full_map] ,wolrd_points[:,indices]),1)
+                tmp_full_map_entyopy_points = torch.cat( (full_map_entropy_points[e,:,:], wolrd_points_entropy[:, entyopy_sampling_idx]), 1)
+                idx = tmp_full_map_entyopy_points[-1, :].multinomial(num_samples=4096)
+                full_map_entropy_points[e, ...] = tmp_full_map_entyopy_points[:, idx]
+
+                tmp_full_map_goal_points = torch.cat( (full_map_goal_points[e,:,:], wolrd_points_goal[:, goal_sampling_idx]), 1)
+                idx = (tmp_full_map_goal_points[-1, :]/torch.sum(tmp_full_map_goal_points[-1, :])).multinomial(num_samples=4096)
+                full_map_goal_points[e, ...] = tmp_full_map_goal_points[:, idx]
+
+
             else:
-                full_map_points[e, ...] = wolrd_points[:, current_view_idx]
+                # full_map_points[e, ...] = wolrd_points[:, current_view_idx]
+                full_map_entropy_points[e, ...] = wolrd_points_entropy[:, entyopy_sampling_idx]
+                full_map_goal_points[e, ...] = wolrd_points_goal[:, goal_sampling_idx]
+
 
             # print("full_map_points_2",full_map_points[:,-1,:])
 
@@ -405,8 +430,12 @@ class Semantic_Mapping(nn.Module):
             #     write_ply_xyz_rgb(full_map_points[e,:3,:].transpose(1,0).cpu().numpy(), full_map_points[e,3:,:].transpose(1,0).cpu().numpy(), "/home/jiazhao/code/navigation/results/points/world_view_rgb_"+str(self.save_points_count)+".ply")
 
 
-        obs_map_points = full_map_points.clone() 
-        obs_map_points[:,:3,:] = obs_map_points[:,:3,:] - robot_location[:,:,None] / self.resolution
+        entropy_map_points = full_map_entropy_points.clone() 
+        entropy_map_points[:,:3,:] = entropy_map_points[:,:3,:] - robot_location[:,:,None] / self.resolution
+
+
+        goal_map_points = full_map_goal_points.clone() 
+        goal_map_points[:,:3,:] = goal_map_points[:,:3,:] - robot_location[:,:,None] / self.resolution
 
         # if self.save_points_count%2 == 0:
         #     write_ply_xyz_rgb(obs_map_points[e,:3,:].transpose(1,0).cpu().numpy(), obs_map_points[e,3:,:].transpose(1,0).cpu().numpy(), "/home/jiazhao/code/navigation/results/points/world_view_rgb_"+str(self.save_points_count)+".ply")
@@ -422,4 +451,4 @@ class Semantic_Mapping(nn.Module):
 
         map_pred, _ = torch.max(maps2, 1)
 
-        return fp_map_pred, map_pred, pose_pred, current_poses, full_map_points , obs_map_points
+        return fp_map_pred, map_pred, pose_pred, current_poses, full_map_entropy_points, full_map_goal_points, entropy_map_points, goal_map_points

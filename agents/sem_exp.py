@@ -326,7 +326,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
 
         depth = np.expand_dims(depth, axis=2)
-        state = np.concatenate((rgb, depth, sem_seg_pred, sem_seg_entropy[:, :, None]),
+        state = np.concatenate((rgb, depth, sem_seg_pred, sem_seg_entropy[:, :, None], sem_goal_pred[:, :, None]),
                                axis=2).transpose(2, 0, 1)
 
         return state
