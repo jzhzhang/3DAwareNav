@@ -14,7 +14,7 @@ def _flatten_helper(T, N, _tensor):
 
 class RolloutStorage(object):
 
-    def __init__(self, num_steps, num_processes, map_obs_shape, points_obs_shape, action_space,
+    def __init__(self, num_steps, num_processes, map_obs_shape, points_entropy_obs_shape, points_goal_obs_shape, action_space,
                  rec_state_size):
 
         if action_space.__class__.__name__ == 'Discrete':
@@ -25,8 +25,8 @@ class RolloutStorage(object):
             action_type = torch.float32
 
         self.obs_map = torch.zeros(num_steps + 1, num_processes, *map_obs_shape)
-        self.obs_points = torch.zeros(num_steps + 1, num_processes, *points_obs_shape)
-
+        self.obs_entropy_points = torch.zeros(num_steps + 1, num_processes, *points_entropy_obs_shape)
+        self.obs_goal_points = torch.zeros(num_steps + 1, num_processes, *points_goal_obs_shape)
 
 
         self.rec_states = torch.zeros(num_steps + 1, num_processes,
@@ -46,7 +46,11 @@ class RolloutStorage(object):
 
     def to(self, device):
         self.obs_map = self.obs_map.to(device)
-        self.obs_points = self.obs_points.to(device)
+
+        self.obs_entropy_points = self.obs_entropy_points.to(device)
+        self.obs_goal_points = self.obs_goal_points.to(device)
+
+
         self.rec_states = self.rec_states.to(device)
         self.rewards = self.rewards.to(device)
         self.value_preds = self.value_preds.to(device)
@@ -58,10 +62,13 @@ class RolloutStorage(object):
             self.extras = self.extras.to(device)
         return self
 
-    def insert(self, obs_map, obs_points,rec_states, actions, action_log_probs, value_preds,
+    def insert(self, obs_map, obs_entropy_points, obs_goal_points, rec_states, actions, action_log_probs, value_preds,
                rewards, masks):
         self.obs_map[self.step + 1].copy_(obs_map)
-        self.obs_points[self.step + 1].copy_(obs_points)
+
+        self.obs_entropy_points[self.step + 1].copy_(obs_entropy_points)
+        self.obs_goal_points[self.step + 1].copy_(obs_goal_points)
+
         self.rec_states[self.step + 1].copy_(rec_states)
         self.actions[self.step].copy_(actions.view(-1, self.n_actions))
         self.action_log_probs[self.step].copy_(action_log_probs)
@@ -73,7 +80,10 @@ class RolloutStorage(object):
 
     def after_update(self):
         self.obs_map[0].copy_(self.obs_map[-1])
-        self.obs_points[0].copy_(self.obs_points[-1])
+
+        self.obs_entropy_points[0].copy_(self.obs_entropy_points[-1])
+        self.obs_goal_points[0].copy_(self.obs_goal_points[-1])
+
         self.rec_states[0].copy_(self.rec_states[-1])
         self.masks[0].copy_(self.masks[-1])
         if self.has_extras:
@@ -114,7 +124,9 @@ class RolloutStorage(object):
         for indices in sampler:
             yield {
                 'obs_map': self.obs_map[:-1].view(-1, *self.obs_map.size()[2:])[indices],
-                'obs_points': self.obs_points[:-1].view(-1, *self.obs_points.size()[2:])[indices],
+
+                'obs_entropy_points': self.obs_entropy_points[:-1].view(-1, *self.obs_entropy_points.size()[2:])[indices],
+                'obs_goal_points': self.obs_goal_points[:-1].view(-1, *self.obs_goal_points.size()[2:])[indices],
 
                 'rec_states': self.rec_states[:-1].view(
                     -1, self.rec_states.size(-1))[indices],
@@ -143,7 +155,10 @@ class RolloutStorage(object):
         for start_ind in range(0, num_processes, num_envs_per_batch):
 
             obs_map = []
-            obs_points = []
+            # obs_points = []
+            obs_entropy_points = []
+            obs_goal_points = []
+
             rec_states = []
             actions = []
             value_preds = []
@@ -158,7 +173,11 @@ class RolloutStorage(object):
 
                 ind = perm[start_ind + offset]
                 obs_map.append(self.obs_map[:-1, ind])
-                obs_points.append(self.obs_points[:-1, ind])
+                # obs_points.append(self.obs_points[:-1, ind])
+
+                obs_entropy_points.append(self.obs_entropy_points[:-1, ind])
+                obs_goal_points.append(self.obs_goal_points[:-1, ind])
+
 
                 rec_states.append(self.rec_states[0:1, ind])
                 actions.append(self.actions[:, ind])
@@ -172,7 +191,11 @@ class RolloutStorage(object):
 
             # These are all tensors of size (T, N, ...)
             obs_map = torch.stack(obs_map, 1)
-            obs_points = torch.stack(obs_points, 1)
+            # obs_points = torch.stack(obs_points, 1)
+
+            obs_entropy_points = torch.stack(obs_entropy_points, 1)
+            obs_goal_points = torch.stack(obs_goal_points, 1)
+
 
             actions = torch.stack(actions, 1)
             value_preds = torch.stack(value_preds, 1)
@@ -185,7 +208,11 @@ class RolloutStorage(object):
 
             yield {
                 'obs_map': _flatten_helper(T, N, obs_map),
-                'obs_points': _flatten_helper(T, N, obs_points),
+                # 'obs_points': _flatten_helper(T, N, obs_points),
+
+                'obs_entropy_points': _flatten_helper(T, N, obs_entropy_points),
+                'obs_goal_points': _flatten_helper(T, N, obs_goal_points),
+
                 'actions': _flatten_helper(T, N, actions),
                 'value_preds': _flatten_helper(T, N, value_preds),
                 'returns': _flatten_helper(T, N, returns),
@@ -201,18 +228,18 @@ class RolloutStorage(object):
 
 class GlobalRolloutStorage(RolloutStorage):
 
-    def __init__(self, num_steps, num_processes, obs_map_shape, obs_points_shape, action_space,
+    def __init__(self, num_steps, num_processes, obs_map_shape, obs_entropy_points_shape, obs_goal_points_shape, action_space,
                  rec_state_size, extras_size):
         super(GlobalRolloutStorage, self).__init__(
-            num_steps, num_processes, obs_map_shape, obs_points_shape, action_space, rec_state_size)
+            num_steps, num_processes, obs_map_shape, obs_entropy_points_shape, obs_goal_points_shape, action_space, rec_state_size)
         self.extras = torch.zeros((num_steps + 1, num_processes, extras_size),
                                   dtype=torch.long)
         self.has_extras = True
         self.extras_size = extras_size
 
-    def insert(self, obs_map, obs_points, rec_states, actions, action_log_probs, value_preds,
+    def insert(self, obs_map, obs_entropy_points, obs_goal_points, rec_states, actions, action_log_probs, value_preds,
                rewards, masks, extras):
         self.extras[self.step + 1].copy_(extras)
         super(GlobalRolloutStorage, self).insert(
-            obs_map, obs_points, rec_states, actions,
+            obs_map, obs_entropy_points, obs_goal_points, rec_states, actions,
             action_log_probs, value_preds, rewards, masks)

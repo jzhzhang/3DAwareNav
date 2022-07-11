@@ -94,7 +94,7 @@ def construct_envs(args):
             scene_split_sizes[i] += 1
 
 
-    gpu_visible_devices = [1, 2, 3, 4]
+    gpu_visible_devices = [1,1,1,1,1,2,2,2,2,2]
 
     print("Scenes per thread:")
     for i in range(args.num_processes):
@@ -115,7 +115,13 @@ def construct_envs(args):
         # print("num_processes", str(args.num_processes_on_first_gpu))
 
         # if i < args.num_processes_on_first_gpu:
-        gpu_id = gpu_visible_devices[int(i%len(gpu_visible_devices)==0)]
+        # gpu_id = gpu_visible_devices[int(i%len(gpu_visible_devices)==0)]
+        gpu_id = gpu_visible_devices[int(i%len(gpu_visible_devices))]
+
+
+
+
+
         # else:
             #print(int((i - args.num_processes_on_first_gpu)
             #             // args.num_processes_per_gpu) )

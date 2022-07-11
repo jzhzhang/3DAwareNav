@@ -1,0 +1,1 @@
+python main.py --sim_gpu_id 0  --sem_gpu_id "cuda:0" --num_processes 8 --auto_gpu_config 0 --split mini_val --eval 1 -d ./tmp --load /DATA/disk1/epic/jiazhaozhang/navigation_data/MP_data/dump/exp_test_1-02-07-00:03:52/periodic_2100000.pth --print_images 1 

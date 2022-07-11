@@ -55,7 +55,9 @@ class DiagGaussian(nn.Module):
 
         zeros = torch.zeros(action_mean.size())
         if x.is_cuda:
-            zeros = zeros.cuda()
+            # zeros = zeros.cuda()
+            zeros = zeros.to("cuda:0")
+
 
         action_logstd = self.logstd(zeros)
         return FixedNormal(action_mean, action_logstd.exp())

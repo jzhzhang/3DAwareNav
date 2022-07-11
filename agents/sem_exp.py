@@ -115,7 +115,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
             self.info["g_reward"] = 0
 
         action = self._plan(planner_inputs)
-
+        # print("action: ", action)
         if (self.args.visualize or self.args.print_images) and (self.episode_no-1) % 3==0 and ( self.timestep == 499 or action == 0) :
             self._visualize(planner_inputs)
 
@@ -137,7 +137,11 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
             self.obs = obs
             self.info = info
 
-            info['g_reward'] += rew
+            if (self.args.visualize or self.args.print_images) and (self.episode_no-1) % 3==0:
+                # print(self.info)
+                self._write_statistic(self.info)
+
+            self.info['g_reward'] += rew
 
             return obs, rew, done, info
 
@@ -322,7 +326,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
 
         depth = np.expand_dims(depth, axis=2)
-        state = np.concatenate((rgb, depth, sem_seg_pred, sem_seg_entropy[:, :, None]),
+        state = np.concatenate((rgb, depth, sem_seg_pred, sem_seg_entropy[:, :, None], sem_goal_pred[:, :, None]),
                                axis=2).transpose(2, 0, 1)
 
         return state
@@ -367,6 +371,34 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         self.rgb_vis = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
 
         return semantic_pred, sem_entropy, sem_goal_prob
+
+
+
+    def _write_statistic(self, info):
+        args = self.args
+        dump_dir = "{}/dump/{}/".format(args.dump_location,
+                                        args.exp_name)
+        ep_dir = '{}/episodes/thread_{}/eps_{}/'.format(
+            dump_dir, self.rank, self.episode_no)
+        if not os.path.exists(ep_dir):
+            os.makedirs(ep_dir)
+
+        if args.print_images:
+            fn = '{}/episodes/thread_{}/eps_{}/{}-{}.txt'.format(
+            dump_dir, self.rank, self.episode_no,
+            self.rank, self.episode_no)
+            f = open(fn, "a")  
+            f.write('{0:10} : {1:7f}, {2:10} : {3:7f}, {4:10} : {5:7f} \n'.format("distance_to_goal", info['distance_to_goal'], "softspl", info['softspl'], "success", info['success']) )
+            f.close()
+            # self.info['distance_to_goal'] = dist
+            # self.info['spl'] = spl
+            # self.info['softspl'] = softspl
+            # self.info['success'] = success
+
+            # cv2.imwrite(fn, self.vis_image)
+
+
+
 
     def _visualize(self, inputs):
         args = self.args
