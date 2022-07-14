@@ -116,6 +116,9 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
         action = self._plan(planner_inputs)
         # print("action: ", action)
+
+
+
         if (self.args.visualize or self.args.print_images) and (self.episode_no-1) % 3==0 and ( self.timestep == 499 or action == 0) :
             self._visualize(planner_inputs)
 
@@ -422,7 +425,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
         sem_map += 5
 
-        no_cat_mask = sem_map == 26
+        no_cat_mask = sem_map == 6 + 4 + 1
         map_mask = np.rint(map_pred) == 1
         exp_mask = np.rint(exp_pred) == 1
         vis_mask = self.visited_vis[gx1:gx2, gy1:gy2] == 1

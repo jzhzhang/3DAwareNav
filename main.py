@@ -206,8 +206,8 @@ def main():
     def init_map_and_pose_for_env(e):
         full_map[e].fill_(0.)
 
-        full_map_entropy_points.fill_(0.)
-        full_map_goal_points.fill_(0.)
+        full_map_entropy_points[e].fill_(0.)
+        full_map_goal_points[e].fill_(0.)
 
         full_pose[e].fill_(0.)
         full_pose[e, :2] = args.map_size_cm / 100.0 / 2.0
@@ -323,9 +323,8 @@ def main():
     # pdb.set_trace()
 
     _, local_map, _, local_pose, full_map_entropy_points, full_map_goal_points, obs_entropy_points, obs_goal_points = \
-        sem_map_module(obs, poses, local_map, local_pose, world_poses, full_map_entropy_points, full_map_goal_points, goal_cat_id)
+        sem_map_module(obs, poses, local_map, local_pose, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id)
 
-    # print("sem", local_map[0, 4:, :, :].argmax(0).cpu().numpy())
 
     # Compute Global policy input
     locs = local_pose.cpu().numpy()
@@ -575,7 +574,6 @@ def main():
                     g_rollouts.obs_map[g_step + 1],
                     g_rollouts.obs_entropy_points[g_step + 1],
                     g_rollouts.obs_goal_points[g_step + 1],
-
 
                     g_rollouts.rec_states[g_step + 1],
                     g_rollouts.masks[g_step + 1],

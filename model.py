@@ -328,6 +328,7 @@ class Semantic_Mapping(nn.Module):
         # print("current_poses: ", current_poses)
 
         points_pose = current_poses.clone()
+        points_pose[:, :2] =  points_pose[:, :2] + torch.from_numpy(origins[:, :2]).to(self.device).float()
 
         points_pose[:,2] =points_pose[:,2] * np.pi /180 
         points_pose[:,:2] = points_pose[:,:2] * 100
@@ -425,13 +426,19 @@ class Semantic_Mapping(nn.Module):
             # cv2.imwrite("/home/jiazhao/code/navigation/results/depth/world_view_depth_"+str(self.save_points_count)+".png", depth.permute(1,2,0).cpu().numpy())
             
             # if self.save_points_count%2 == 0:
-            #     write_ply_xyz_rgb(full_map_points[0,:3,:].transpose(1,0).cpu().numpy(), full_map_points[0,3:6,:].transpose(1,0).cpu().numpy(), "/home/jiazhaozhang/project/navigation/Object-Goal-Navigation_3D_points/tmp/points/world_view_rgb_"+str(self.save_points_count)+".ply")
+            #     write_ply_xyz(full_map_entropy_points[0,:3,:].transpose(1,0).cpu().numpy(),  "tmp/points/world_view_"+str(self.save_points_count)+".ply")
+
+
             # if self.save_points_count%2 == 0:
             #     write_ply_xyz_rgb(full_map_points[e,:3,:].transpose(1,0).cpu().numpy(), full_map_points[e,3:,:].transpose(1,0).cpu().numpy(), "/home/jiazhao/code/navigation/results/points/world_view_rgb_"+str(self.save_points_count)+".ply")
 
 
         entropy_map_points = full_map_entropy_points.clone() 
         entropy_map_points[:,:3,:] = entropy_map_points[:,:3,:] - robot_location[:,:,None] / self.resolution
+
+
+        # if self.save_points_count%2 == 0:
+        #     write_ply_xyz(entropy_map_points[0,:3,:].transpose(1,0).cpu().numpy(),  "tmp/points/world_view_"+str(self.save_points_count)+".ply")
 
 
         goal_map_points = full_map_goal_points.clone() 

@@ -73,13 +73,13 @@ def get_args():
     #                     default="tasks/objectnav_gibson.yaml",
     #                     help="path to config yaml containing task information")
 
-    # parser.add_argument("--task_config", type=str,
-    #                     default="tasks/challenge_objectnav2022.local.rgbd.yaml",
-    #                     help="path to config yaml containing task information")
-
     parser.add_argument("--task_config", type=str,
-                        default="tasks/challenge_objectnav2021.local.rgbd.yaml",
+                        default="tasks/challenge_objectnav2022.local.rgbd.yaml",
                         help="path to config yaml containing task information")
+
+    # parser.add_argument("--task_config", type=str,
+    #                     default="tasks/challenge_objectnav2021.local.rgbd.yaml",
+    #                     help="path to config yaml containing task information")
 
     parser.add_argument("--split", type=str, default="train",
                         help="dataset split (train | val | val_mini) ")
@@ -145,7 +145,7 @@ def get_args():
     parser.add_argument('--intrinsic_rew_coeff', type=float, default=0.02,
                         help="intrinsic exploration reward coefficient")
 
-    parser.add_argument('--num_sem_categories', type=float, default=22)
+    parser.add_argument('--num_sem_categories', type=float, default=7)
     
     parser.add_argument('--sem_pred_prob_thr', type=float, default=0.9,
                         help="Semantic prediction confidence threshold")
