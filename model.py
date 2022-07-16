@@ -61,11 +61,6 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         orientation_emb = self.orientation_emb(extras[:, 0])
         goal_emb = self.goal_emb(extras[:, 1])
 
-        # print(x.shape)
-        # print(orientation_emb.shape)
-        # print(goal_emb.shape)
-        # print(points_x.shape)
-
 
         x = torch.cat((x, orientation_emb, goal_emb, points_entropy_x, points_goal_x), 1)
         # print("shape", x.shape)
