@@ -82,12 +82,9 @@ class ObjectGoal_Env(habitat.RLEnv):
 
 
     def load_new_episode(self):
-        """The function loads a fixed episode from the episode dataset. This
-        function is used for evaluating a trained model on the val split.
-        """
+
 
         args = self.args
-        # self.scene_path = self.habitat_env.sim.config.SCENE
         self.scene_path = self.habitat_env.sim.config.sim_cfg.scene_id
 
         scene_name = self.scene_path.split("/")[-1].split(".")[0]
@@ -132,47 +129,9 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.starting_distance = episode["info"]["geodesic_distance"]
 
         self.prev_distance = self.starting_distance
-        # self._env.sim.set_agent_state(pos, rot)
-
-        # obs = self._env.sim.get_observations_at(pos, rot)
-
-        # return obs
 
 
-    # def sim_map_to_sim_continuous(self, coords):
-    #     """Converts ground-truth 2D Map coordinates to absolute Habitat
-    #     simulator position and rotation.
-    #     """
-    #     agent_state = self._env.sim.get_agent_state(0)
-    #     y, x = coords
-    #     min_x, min_y = self.map_obj_origin / 100.0
-
-    #     cont_x = x / 20. + min_x
-    #     cont_y = y / 20. + min_y
-    #     agent_state.position[0] = cont_y
-    #     agent_state.position[2] = cont_x
-
-    #     rotation = agent_state.rotation
-    #     rvec = quaternion.as_rotation_vector(rotation)
-
-    #     if self.args.train_single_eps:
-    #         rvec[1] = 0.0
-    #     else:
-    #         rvec[1] = np.random.rand() * 2 * np.pi
-    #     rot = quaternion.from_rotation_vector(rvec)
-
-    #     return agent_state.position, rot
-
-    # def sim_continuous_to_sim_map(self, sim_loc):
-    #     """Converts absolute Habitat simulator pose to ground-truth 2D Map
-    #     coordinates.
-    #     """
-    #     x, y, o = sim_loc
-    #     min_x, min_y = self.map_obj_origin / 100.0
-    #     x, y = int((-x - min_x) * 20.), int((-y - min_y) * 20.)
-
-    #     o = np.rad2deg(o) + 180.0
-    #     return y, x, o
+   
 
     def reset(self):
         """Resets the environment to a new episode.
@@ -226,6 +185,8 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.info['current_pose'] = self.get_sim_location()
         self.info['goal_cat_id'] = self.goal_idx
         self.info['goal_name'] = self.goal_name
+        self.info['scene_id'] = self.habitat_env.sim.config.sim_cfg.scene_id
+        # self.info['episode_idx'] = self. 
 
         return state, self.info
 

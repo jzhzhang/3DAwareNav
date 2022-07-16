@@ -221,62 +221,62 @@ mpcat40_labels = [
 #             'bathtub':15 #b in resnet
 # }
 
-# habitat_labels = {
-#             # 'background': 0,
-#             'chair': 0, #g
-#             'bed': 1, #g
-#             'plant':2, #b
-#             'toilet':3, # in resnet
-#             'tv_monitor':4, # in resnet
-#             'sofa':5,
-#             'cabinet':6, #g
-# }
-
-
-# HM_semantic_name_2_id = {
-#     "chair": 0,
-#     "bed": 1,
-#     "plant": 2,
-#     "toilet": 3,
-#     "tv_monitor": 4,
-#     "sofa": 5
-# }
-
-# HM_semantic_name_2_id = {
-#     "chair": 0,
-#     "bed": 1,
-#     "plant": 2,
-#     "toilet": 3,
-#     "tv_monitor": 4,
-#     "sofa": 5
-# }
-
-
-
 habitat_labels = {
+            # 'background': 0,
             'chair': 0, #g
-            'table': 1, #g
-            'picture':2, #b
-            'cabinet':3, # in resnet
-            'cushion':4, # in resnet
-            'sofa':5, #g
-            'bed':6, #g
-            'chest_of_drawers':7, #b in resnet
-            'plant':8, #g
-            'sink':9, #g
-            'toilet':10, #g
-            'stool':11, #b
-            'towel':12, #b in resnet
-            'tv_monitor':13, #g
-            'shower':14, #b
-            'bathtub':15, #b in resnet
-            'counter':16, #b isn't this table?
-            'fireplace':17,
-            'gym_equipment':18,
-            'seating':19,
-            'clothes':20, # in resnet
-            'background': 21
+            'bed': 1, #g
+            'plant':2, #b
+            'toilet':3, # in resnet
+            'tv_monitor':4, # in resnet
+            'sofa':5,
+            'cabinet':6, #g
 }
+
+
+# HM_semantic_name_2_id = {
+#     "chair": 0,
+#     "bed": 1,
+#     "plant": 2,
+#     "toilet": 3,
+#     "tv_monitor": 4,
+#     "sofa": 5
+# }
+
+# HM_semantic_name_2_id = {
+#     "chair": 0,
+#     "bed": 1,
+#     "plant": 2,
+#     "toilet": 3,
+#     "tv_monitor": 4,
+#     "sofa": 5
+# }
+
+
+
+# habitat_labels = {
+#             'chair': 0, #g
+#             'table': 1, #g
+#             'picture':2, #b
+#             'cabinet':3, # in resnet
+#             'cushion':4, # in resnet
+#             'sofa':5, #g
+#             'bed':6, #g
+#             'chest_of_drawers':7, #b in resnet
+#             'plant':8, #g
+#             'sink':9, #g
+#             'toilet':10, #g
+#             'stool':11, #b
+#             'towel':12, #b in resnet
+#             'tv_monitor':13, #g
+#             'shower':14, #b
+#             'bathtub':15, #b in resnet
+#             'counter':16, #b isn't this table?
+#             'fireplace':17,
+#             'gym_equipment':18,
+#             'seating':19,
+#             'clothes':20, # in resnet
+#             'background': 21
+# }
 
 
 fourty221_ori = {}

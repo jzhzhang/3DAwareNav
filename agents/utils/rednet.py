@@ -532,7 +532,6 @@ class SemanticPredRedNet():
 
         #=================prob points================
         goal_cat_output = semantic_input[:, :, cat_goal] + 1e-5
-        # print("goal_cat_output", goal_cat_output)
         goal_cat_output[goal_cat_output<0] = 0
 
         semantic_input = semantic_input * 0.1
