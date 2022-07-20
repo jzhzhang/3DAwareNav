@@ -57,3 +57,5 @@ def write_ply_xyz(point_cloud,output_path):
         ply_file.write("\n")
     ply_file.close()
     print("save result to "+output_path)
+
+
