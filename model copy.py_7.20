@@ -207,7 +207,7 @@ class Semantic_Mapping(nn.Module):
 
         self.save_points_count = 0
 
-    def forward(self, obs, pose_obs, maps_last, poses_last, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id, gl_tree_list, infos):
+    def forward(self, obs, pose_obs, maps_last, poses_last, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id, gl_tree_list):
         bs, c, h, w = obs.size()
         depth = obs[:, 3, :, :]
         # depth[depth>500] =0
@@ -325,6 +325,15 @@ class Semantic_Mapping(nn.Module):
         rotated = F.grid_sample(agent_view, rot_mat, align_corners=True)
         translated = F.grid_sample(rotated, trans_mat, align_corners=True)
 
+        # points_current_poses = current_poses.clone()
+        # points_current_poses[:,2] =points_current_poses[:,2] * np.pi /180 
+        # points_current_poses[:,:2] = points_current_poses[:,:2] * 100
+        # print("points_current_poses: ", points_current_poses)
+
+        # points_pose = current_poses.clone()+torch.from_numpy(origins).to(self.device)
+        # print("orgins: ", origins)
+        # print("current_poses: ", current_poses)
+
         points_pose = current_poses.clone()
         points_pose[:, :2] =  points_pose[:, :2] + torch.from_numpy(origins[:, :2]).to(self.device).float()
 
@@ -332,54 +341,93 @@ class Semantic_Mapping(nn.Module):
         points_pose[:,:2] = points_pose[:,:2] * 100
         robot_location = points_pose.clone()
         robot_location[:, 2] = self.agent_height
+        # print(robot_location)
+        # print("points_pose: ", points_pose)
 
-        import time
+        # print("agent_view_t_3d",agent_view_t_3d.shape)
+        # print("points_pose",points_pose.shape)
+
         for e in range(bs):
-            time_s = time.time()
+            # world_view_t = du.transform_pose_t2(
+            #     agent_view_t_3d, points_current_poses[e,...].cpu().numpy(), self.device).reshape(-1,3)
 
             world_view_t = du.transform_pose_t2(
                 agent_view_t_3d[e,...], points_pose[e,...].cpu().numpy(), self.device).reshape(-1,3)
 
-            world_view_sem_t = obs[e, 4:4+(self.num_sem_categories), :, :].reshape((self.num_sem_categories), -1).transpose(0, 1)
 
-            non_zero_row_1 = torch.abs(point_cloud_t_3d[e,...].reshape(-1,3)).sum(dim=1) > 0
-            non_zero_row_2 = torch.abs(world_view_sem_t).sum(dim=1) > 0
+            # print("world_view shape",world_view_t.shape)
+            non_zero_row = torch.abs(point_cloud_t_3d[e,...].reshape(-1,3)).sum(dim=1) > 0
 
-            non_zero_row = non_zero_row_1 & non_zero_row_2
-
-
-
-            world_view_sem = world_view_sem_t[non_zero_row].cpu().numpy()
-
-            world_view_label = np.argmax(world_view_sem, axis=1)
+            # print("non_zero_row", non_zero_row)
+            # print("non_zero_row",non_zero_row.shape)
 
 
-            world_view_rgb = obs[e, :3, :, :].permute(1,2,0).reshape(-1,3)[non_zero_row].cpu().numpy()
-            world_view_t = world_view_t[non_zero_row].cpu().numpy()
+            # world_view_rgb = obs[e, :3, :, :].permute(1,2,0).reshape(-1,3)
+            # world_view_rgb = world_view_rgb[non_zero_row].transpose(1,0)
+
+            # print("rgb", world_view_rgb.shape)
+
+            world_view_entropy = obs[e, -2, :, :].reshape(-1)
+            world_view_entropy = world_view_entropy[non_zero_row]
+
+
+            world_view_goal = obs[e, -1, :, :].reshape(-1)
+            world_view_goal= world_view_goal[non_zero_row]
+
+            # print("entropy", world_view_entropy.shape)
+            # print("max entropy", torch.max(world_view_entropy))
+
+            # world_view_t = world_view_t[e, non_zero_row].transpose(1,0) / self.resolution
+            # world_view_t = (world_view_t - robot_location).transpose(1,0)
+
+
+            # new obs view feature
+            wolrd_points_entropy = torch.cat((world_view_t[non_zero_row].transpose(1,0) / self.resolution, world_view_entropy[None,:]), 0)
+            wolrd_points_goal = torch.cat((world_view_t[non_zero_row].transpose(1,0) / self.resolution, world_view_goal[None,:]), 0)
 
 
 
+            # print("wolrd_points shape", wolrd_points.shape)
 
-            if world_view_t.shape[0] >= 512:
-                indx = np.random.choice(world_view_t.shape[0], 512, replace = False)
+            # print("full_map_points_1",full_map_points[:,-1,:])
+
+
+            if wolrd_points_entropy.shape[1]<4096 or wolrd_points_goal.shape[1]<4096:
+                continue
+            
+            entyopy_sampling_idx = world_view_entropy.multinomial(num_samples=4096)
+            goal_sampling_idx = (world_view_goal/torch.sum(world_view_goal)).multinomial(num_samples=4096)
+
+
+            if torch.max(full_map_entropy_points[e, ...]) != 0:
+
+                tmp_full_map_entyopy_points = torch.cat( (full_map_entropy_points[e,:,:], wolrd_points_entropy[:, entyopy_sampling_idx]), 1)
+                idx = tmp_full_map_entyopy_points[-1, :].multinomial(num_samples=4096)
+                full_map_entropy_points[e, ...] = tmp_full_map_entyopy_points[:, idx]
+
+                tmp_full_map_goal_points = torch.cat( (full_map_goal_points[e,:,:], wolrd_points_goal[:, goal_sampling_idx]), 1)
+                idx = (tmp_full_map_goal_points[-1, :]/torch.sum(tmp_full_map_goal_points[-1, :])).multinomial(num_samples=4096)
+                full_map_goal_points[e, ...] = tmp_full_map_goal_points[:, idx]
+
+
             else:
-                indx = np.linspace(0, world_view_t.shape[0]-1, world_view_t.shape[0]).astype(np.int32)
-
-            # print(indx)
-
-            print("world_view_label", world_view_sem[indx].shape)
+                # full_map_points[e, ...] = wolrd_points[:, current_view_idx]
+                full_map_entropy_points[e, ...] = wolrd_points_entropy[:, entyopy_sampling_idx]
+                full_map_goal_points[e, ...] = wolrd_points_goal[:, goal_sampling_idx]
 
 
-            print(world_view_label.shape)
-            print("world_viwe_label", world_view_label[indx])
 
-            gl_tree = gl_tree_list[e]
-            gl_tree.init_points_node(world_view_t[indx])
-            per_frame_nodes = gl_tree.add_points(world_view_t[indx], world_view_sem[indx], world_view_rgb[indx], world_view_label[indx], infos[e]['timestep'])
-            print(time.time() - time_s)
 
-            gl_tree.node_to_points_ply("/DATA/disk1/epic/jiazhaozhang/navigation_data/MP_data/points/"+str(e)+"_"+str(self.save_points_count)+".ply", per_frame_nodes)
+        entropy_map_points = full_map_entropy_points.clone() 
+        entropy_map_points[:,:3,:] = entropy_map_points[:,:3,:] - robot_location[:,:,None] / self.resolution
 
+
+        # if self.save_points_count%2 == 0:
+        #     write_ply_xyz(entropy_map_points[0,:3,:].transpose(1,0).cpu().numpy(),  "tmp/points/world_view_"+str(self.save_points_count)+".ply")
+
+
+        goal_map_points = full_map_goal_points.clone() 
+        goal_map_points[:,:3,:] = goal_map_points[:,:3,:] - robot_location[:,:,None] / self.resolution
 
 
         self.save_points_count+=1
@@ -388,4 +436,4 @@ class Semantic_Mapping(nn.Module):
 
         map_pred, _ = torch.max(maps2, 1)
 
-        return fp_map_pred, map_pred, pose_pred, current_poses, full_map_entropy_points, full_map_entropy_points, full_map_entropy_points, full_map_entropy_points  # full_map_entropy_points will not be used in further training
+        return fp_map_pred, map_pred, pose_pred, current_poses, full_map_entropy_points, full_map_goal_points, entropy_map_points, goal_map_points

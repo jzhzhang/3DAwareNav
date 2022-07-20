@@ -535,7 +535,7 @@ class SemanticPredRedNet():
         goal_cat_output[goal_cat_output<0] = 0
 
         semantic_input = semantic_input * 0.1
-        semantic_input[semantic_input<self.threshold] = 0 #0.9: 30 1.1: 26
+        # semantic_input[semantic_input<self.threshold] = 0 #0.9: 30 1.1: 26
 
 
         return semantic_input, mask, sem_entropy, goal_cat_output

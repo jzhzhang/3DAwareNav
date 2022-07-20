@@ -81,6 +81,8 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         if args.visualize or args.print_images:
             self.vis_image = vu.init_vis_image(self.goal_name, self.legend)
 
+        self.info['timestep'] = self.timestep
+
         return obs, info
 
     def plan_act_and_preprocess(self, planner_inputs):
@@ -119,14 +121,15 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
 
 
-        if (self.args.visualize or self.args.print_images) and (self.episode_no-1) % 3==0 and ( self.timestep == 499 or action == 0) :
-            self._visualize(planner_inputs)
-
-
-
-        # if (self.args.visualize or self.args.print_images) :
+        # if (self.args.visualize or self.args.print_images) and (self.episode_no-1) % 3==0 and ( self.timestep == 499 or action == 0) :
         #     self._visualize(planner_inputs)
 
+
+
+        if (self.args.visualize or self.args.print_images) :
+            self._visualize(planner_inputs)
+
+        self.info['timestep'] = self.timestep
 
         if action >= 0:
 
@@ -146,12 +149,14 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
             self.info['g_reward'] += rew
 
-            return obs, rew, done, info
+            return obs, rew, done, self.info
 
         else:
             self.last_action = None
             self.info["sensor_pose"] = [0., 0., 0.]
             return np.zeros(self.obs_shape), 0., False, self.info
+
+
 
     def _plan(self, planner_inputs):
         """Function responsible for planning

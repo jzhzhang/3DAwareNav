@@ -16,6 +16,11 @@ from envs import make_vec_envs
 from arguments import get_args
 import algo
 
+import matplotlib.pyplot as plt
+
+from GLtree.interval_tree import RedBlackTree, Node, BLACK, RED, NIL
+# from GLtree.octree_point import point3D
+from GLtree.octree import GL_tree
 
 
 
@@ -36,6 +41,7 @@ def main():
     log_dir = "{}/models/{}/".format(args.dump_location, args.exp_name)
     dump_dir = "{}/dump/{}/".format(args.dump_location, args.exp_name)
     tb_dir = "{}/tb/{}/".format(args.dump_location, args.exp_name)
+    fig_dir = "{}/fig/{}/".format(args.dump_location, args.exp_name)
 
     log_wr = log_writter("{}/tb/{}/".format(args.dump_location, args.exp_name))
 
@@ -46,7 +52,8 @@ def main():
         os.makedirs(dump_dir)
     if not os.path.exists(tb_dir):
         os.makedirs(tb_dir)
-
+    if not os.path.exists(fig_dir):
+        os.makedirs(fig_dir)
 
 
     logging.basicConfig(
@@ -86,6 +93,17 @@ def main():
         episode_agent_success = deque(maxlen=1000)
 
 
+    cat_pred_threshold = []
+
+    for _ in range(args.num_sem_categories-1):
+        cat_pred_threshold.append([])
+
+    timestep_threshold = np.zeros(500) 
+    timestep_count_threshold = np.zeros(500) + 1e-5
+
+
+
+
     finished = np.zeros((args.num_processes))
     wait_env = np.zeros((args.num_processes))
 
@@ -105,6 +123,12 @@ def main():
     obs, infos = envs.reset()
 
     torch.set_grad_enabled(False)
+
+    gl_tree_list = []
+    for _ in range(num_scenes):
+        gl_tree_list.append(GL_tree(args))
+
+
 
     # Initialize map variables:.
     # Full map consists of multiple channels containing the following:
@@ -242,9 +266,16 @@ def main():
 
     init_map_and_pose()
 
+    # # 3D point tree
+    # x_rb_tree = RedBlackTree(opt.interval_size)
+    # y_rb_tree = RedBlackTree(opt.interval_size)
+    # z_rb_tree = RedBlackTree(opt.interval_size)
+
+
+
     # Global policy observation space
     ngc = 8 + args.num_sem_categories
-    es = 2
+    es = 3
     g_map_observation_space = gym.spaces.Box(0, 1,
                                          (ngc,
                                           local_w,
@@ -261,7 +292,7 @@ def main():
 
     # Global policy action space
     g_action_space = gym.spaces.Box(low=0.0, high=0.99,
-                                    shape=(2,), dtype=np.float32)
+                                    shape=(3,), dtype=np.float32)
 
     # Global policy recurrent layer size
     g_hidden_size = args.global_hidden_size
@@ -285,7 +316,7 @@ def main():
     global_input = torch.zeros(num_scenes, ngc, local_w, local_h)
     global_orientation = torch.zeros(num_scenes, 1).long()
     intrinsic_rews = torch.zeros(num_scenes).to(device)
-    extras = torch.zeros(num_scenes, 2)
+    extras = torch.zeros(num_scenes, 3)
 
     # Storage
     g_rollouts = GlobalRolloutStorage(args.num_global_steps,
@@ -317,13 +348,18 @@ def main():
         [infos[env_idx]['goal_cat_id'] for env_idx
          in range(num_scenes)]))
 
+
+    timestep_array = torch.from_numpy(np.asarray(
+        [0*1.0/500 for env_idx
+            in range(num_scenes)]))
+
     # print(goal_cat_id)
     # exit(0)
     # import pdb
     # pdb.set_trace()
 
     _, local_map, _, local_pose, full_map_entropy_points, full_map_goal_points, obs_entropy_points, obs_goal_points = \
-        sem_map_module(obs, poses, local_map, local_pose, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id)
+        sem_map_module(obs, poses, local_map, local_pose, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id, gl_tree_list, infos)
 
 
     # Compute Global policy input
@@ -344,9 +380,15 @@ def main():
         full_map[:, 0:4, :, :])
     global_input[:, 8:, :, :] = local_map[:, 4:, :, :].detach()
 
-    extras = torch.zeros(num_scenes, 2)
+
+
+
+
+
+    extras = torch.zeros(num_scenes, 3)
     extras[:, 0] = global_orientation[:, 0]
     extras[:, 1] = goal_cat_id
+    extras[:, 2] = timestep_array   #to the finish
 
     g_rollouts.obs_map[0].copy_(global_input)   
 
@@ -368,13 +410,18 @@ def main():
             deterministic=False
         )
 
-    cpu_actions = nn.Sigmoid()(g_action).cpu().numpy()
+    cpu_actions = nn.Sigmoid()(g_action[: ,:2]).cpu().numpy()
     global_goals = [[int(action[0] * local_w), int(action[1] * local_h)]
                     for action in cpu_actions]
     global_goals = [[min(x, int(local_w - 1)), min(y, int(local_h - 1))]
                     for x, y in global_goals]
 
     goal_maps = [np.zeros((local_w, local_h)) for _ in range(num_scenes)]
+
+
+
+
+
 
     for e in range(num_scenes):
         goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
@@ -401,6 +448,9 @@ def main():
     torch.set_grad_enabled(False)
     spl_per_category = defaultdict(list)
     success_per_category = defaultdict(list)
+
+
+
 
     for step in range(args.num_training_frames // args.num_processes + 1):
         if finished.sum() == args.num_processes:
@@ -473,7 +523,7 @@ def main():
                  in range(num_scenes)]))
 
         _, local_map, _, local_pose, full_map_entropy_points, full_map_goal_points, obs_entropy_points, obs_goal_points = \
-            sem_map_module(obs, poses, local_map, local_pose, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id)
+            sem_map_module(obs, poses, local_map, local_pose, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id, gl_tree_list, infos)
 
 
         locs = local_pose.cpu().numpy()
@@ -529,11 +579,17 @@ def main():
                 nn.MaxPool2d(args.global_downscaling)(
                     full_map[:, 0:4, :, :])
             global_input[:, 8:, :, :] = local_map[:, 4:, :, :].detach()
-            # goal_cat_id = torch.from_numpy(np.asarray(
-            #     [infos[env_idx]['goal_cat_id'] for env_idx
-            #      in range(num_scenes)]))
+            goal_cat_id = torch.from_numpy(np.asarray(
+                [infos[env_idx]['goal_cat_id'] for env_idx
+                 in range(num_scenes)]))
+
+            timestep_array = torch.from_numpy(np.asarray(
+                [infos[env_idx]['timestep']*1.0/500 for env_idx
+                 in range(num_scenes)]))
+
             extras[:, 0] = global_orientation[:, 0]
             extras[:, 1] = goal_cat_id
+            extras[:, 2] = timestep_array
 
             # Get exploration reward and metrics
             g_reward = torch.from_numpy(np.asarray(
@@ -580,7 +636,7 @@ def main():
                     extras=g_rollouts.extras[g_step + 1],
                     deterministic=False
                 )
-            cpu_actions = nn.Sigmoid()(g_action).cpu().numpy()
+            cpu_actions = nn.Sigmoid()(g_action[:,:2]).cpu().numpy()
             global_goals = [[int(action[0] * local_w),
                              int(action[1] * local_h)]
                             for action in cpu_actions]
@@ -593,6 +649,7 @@ def main():
             g_reward = 0
             g_masks = torch.ones(num_scenes).float().to(device)
 
+        # print("=======================g action", g_action[e, 2])
         # ------------------------------------------------------------------
 
         # ------------------------------------------------------------------
@@ -603,15 +660,35 @@ def main():
         for e in range(num_scenes):
             goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
 
+        confidence_thres = nn.Sigmoid()(g_action[:,2]).cpu().numpy()
+
+
+        # timestep_array[]
+
+
         for e in range(num_scenes):
+
+            cat_pred_threshold[infos[e]['goal_cat_id']].append(confidence_thres[e])
+            timestep_threshold[infos[e]['timestep']]+=confidence_thres[e]
+            timestep_count_threshold[infos[e]['timestep']]+=1
+
+
             cn = infos[e]['goal_cat_id'] + 4
-            if local_map[e, cn, :, :].sum() != 0.:
-                cat_semantic_map = local_map[e, cn, :, :].cpu().numpy()
+            if torch.any((local_map[e, cn, :, :] -  confidence_thres[e]) > 0. ):
+                cat_semantic_map = (local_map[e, cn, :, :] - confidence_thres[e]).cpu().numpy()
                 cat_semantic_scores = cat_semantic_map
                 cat_semantic_scores[cat_semantic_scores > 0] = 1.
+                cat_semantic_scores[cat_semantic_scores < 0] = 0.
+
                 goal_maps[e] = cat_semantic_scores
                 found_goal[e] = 1
+
+                # print("score", confidence_thres)
+                # print("local_map", local_map[e, cn, :, :])
+                # print("cat_semantic_scores", cat_semantic_scores)
+                # print("cat_semantic_map", cat_semantic_map)
         # ------------------------------------------------------------------
+
 
         # ------------------------------------------------------------------
         # Take action and get next observation
@@ -625,9 +702,15 @@ def main():
             p_input['found_goal'] = found_goal[e]
             p_input['wait'] = wait_env[e] or finished[e]
             if args.visualize or args.print_images:
-                local_map[e, -1, :, :] = 1e-5
-                p_input['sem_map_pred'] = local_map[e, 4:, :,
-                                                    :].argmax(0).cpu().numpy()
+
+                local_map_thres = local_map[e, 4:, :, :]
+                local_map_thres[local_map_thres < args.sem_pred_prob_thr] = 0 
+
+                local_map_thres[-1, :, :] = 1e-5
+                # p_input['sem_map_pred'] = local_map[e, 4:, :,
+                #                                     :].argmax(0).cpu().numpy()
+                p_input['sem_map_pred'] = local_map_thres.argmax(0).cpu().numpy()
+
 
         obs, _, done, infos = envs.plan_act_and_preprocess(planner_inputs)
         # ------------------------------------------------------------------
@@ -672,6 +755,21 @@ def main():
             ])
 
             log += "\n\tRewards:"
+
+            # each category threshold
+            for cat_id in range(args.num_sem_categories-1):
+                if len(cat_pred_threshold[cat_id])==0:
+                    continue
+                log_wr.writer.add_scalar("train/category/"+str(cat_id), np.mean(cat_pred_threshold[cat_id]), step)
+
+            if step % (args.log_interval*100) == 0:
+                confidence_curve = timestep_threshold/timestep_count_threshold
+                plt.plot(np.linspace(0, 500, 500), confidence_curve)
+                plt.savefig(os.path.join(fig_dir, "threshold_"+str(step)+".png"))
+                plt.cla()
+
+
+
 
             if len(g_episode_rewards) > 0:
 
