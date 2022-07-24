@@ -358,8 +358,6 @@ class Semantic_Mapping(nn.Module):
             world_view_t = world_view_t[non_zero_row].cpu().numpy()
 
 
-
-
             if world_view_t.shape[0] >= 512:
                 indx = np.random.choice(world_view_t.shape[0], 512, replace = False)
             else:
@@ -378,8 +376,9 @@ class Semantic_Mapping(nn.Module):
             per_frame_nodes = gl_tree.add_points(world_view_t[indx], world_view_sem[indx], world_view_rgb[indx], world_view_label[indx], infos[e]['timestep'])
             print(time.time() - time_s)
 
-            gl_tree.node_to_points_ply("/DATA/disk1/epic/jiazhaozhang/navigation_data/MP_data/points/"+str(e)+"_"+str(self.save_points_count)+".ply", per_frame_nodes)
-
+            ### mind the path
+            # gl_tree.node_to_points_ply("/DATA/disk1/epic/jiazhaozhang/navigation_data/MP_data/points/"+str(e)+"_"+str(self.save_points_count)+".ply", per_frame_nodes)
+            gl_tree.node_to_points_ply("tmp/points/"+str(e)+"_"+str(self.save_points_count)+".ply", per_frame_nodes)
 
 
         self.save_points_count+=1
