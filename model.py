@@ -165,7 +165,7 @@ class Semantic_Mapping(nn.Module):
 
     def __init__(self, args):
         super(Semantic_Mapping, self).__init__()
-        print(args.device)
+        # print(args.device)
         # exit(0)
         self.device = args.device
         self.screen_h = args.frame_height
@@ -204,12 +204,21 @@ class Semantic_Mapping(nn.Module):
             self.screen_h // self.du_scale * self.screen_w // self.du_scale
         ).float().to(self.device)
 
+        # logging information ##############################
+        self.mapping_infos=[]
+        for _ in range(args.num_processes):
+            m_info = dict()
+            m_info["timestep"] = 0
+            m_info["seq_num"] = 0
+            self.mapping_infos.append(m_info)
 
-        self.save_points_count = 0
+
+
 
     def forward(self, obs, pose_obs, maps_last, poses_last, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id, gl_tree_list, infos):
         bs, c, h, w = obs.size()
         depth = obs[:, 3, :, :]
+
         # depth[depth>500] =0
 
         point_cloud_t = du.get_point_cloud_from_z_t(
@@ -375,13 +384,19 @@ class Semantic_Mapping(nn.Module):
             gl_tree.init_points_node(world_view_t[indx])
             per_frame_nodes = gl_tree.add_points(world_view_t[indx], world_view_sem[indx], world_view_rgb[indx], world_view_label[indx], infos[e]['timestep'])
             print(time.time() - time_s)
+            scene_nodes = gl_tree.all_points()
 
-            ### mind the path
-            # gl_tree.node_to_points_ply("/DATA/disk1/epic/jiazhaozhang/navigation_data/MP_data/points/"+str(e)+"_"+str(self.save_points_count)+".ply", per_frame_nodes)
-            gl_tree.node_to_points_ply("tmp/points/"+str(e)+"_"+str(self.save_points_count)+".ply", per_frame_nodes)
+            # save results 
+            if infos[e]["timestep"] < self.mapping_infos[e]["timestep"]:
+                self.mapping_infos[e]["seq_num"] +=1 
+            self.mapping_infos[e]["timestep"] = infos[e]["timestep"]
+
+                # self.time_step = infos[e]["timestep"]
+
+            gl_tree.node_to_points_ply("tmp/points/seq_{0}_step_{1}.ply".format(self.mapping_infos[e]["seq_num"], self.mapping_infos[e]["timestep"]), scene_nodes)
 
 
-        self.save_points_count+=1
+        # self.save_points_count+=1
 
         maps2 = torch.cat((maps_last.unsqueeze(1), translated.unsqueeze(1)), 1)
 

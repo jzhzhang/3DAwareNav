@@ -82,7 +82,7 @@ class point3D:
         self.branch_array = [None, None, None, None, None, None, None, None]
         self.branch_distance = np.full((8),0.15)
         self.frame_id = 0
-        
+
 
     def add_point_seg(self, point_seg):
         
@@ -120,6 +120,14 @@ class GL_tree:
 
         self.scene_node = set()
 
+    def reset_gltree(self):
+        del self.x_rb_tree
+        del self.y_rb_tree
+        del self.z_rb_tree
+
+        self.x_rb_tree = RedBlackTree(self.opt.interval_size)
+        self.y_rb_tree = RedBlackTree(self.opt.interval_size)
+        self.z_rb_tree = RedBlackTree(self.opt.interval_size)
 
     def init_points_node(self, points):
         self.x_tree_node_list = []
@@ -202,6 +210,9 @@ class GL_tree:
 
     def all_points(self):
         return self.scene_node
+
+
+
 
     def node_to_points_ply(self, file_name, point_nodes):
 

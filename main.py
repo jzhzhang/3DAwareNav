@@ -227,6 +227,11 @@ def main():
             local_pose[e] = full_pose[e] - \
                 torch.from_numpy(origins[e]).to(device).float()
 
+        for e in range(num_scenes):
+            gl_tree_list[e].reset_gltree()
+
+        
+
     def init_map_and_pose_for_env(e):
         full_map[e].fill_(0.)
 
@@ -235,6 +240,8 @@ def main():
 
         full_pose[e].fill_(0.)
         full_pose[e, :2] = args.map_size_cm / 100.0 / 2.0
+        gl_tree_list[e].reset_gltree()
+
 
         locs = full_pose[e].cpu().numpy()
         planner_pose_inputs[e, :3] = locs
@@ -255,6 +262,7 @@ def main():
         local_map[e] = full_map[e, :, lmb[e, 0]:lmb[e, 1], lmb[e, 2]:lmb[e, 3]]
         local_pose[e] = full_pose[e] - \
             torch.from_numpy(origins[e]).to(device).float()
+
 
     def update_intrinsic_rew(e):
         prev_explored_area = full_map[e, 1].sum(1).sum(0)
