@@ -56,24 +56,56 @@ from constants import color_palette_array
 #         sample[0] = 0
 #         return neighbor_2dfeature[sample,:].T, neighbor_node[sample,:].T, count
 
+'''
+Liu Dai & Fanpeng Meng update in 23 July 2022
+1. point3D init: num_sem_categories
+2. point3D init: self.seg_prob_fused, self_label_thres
+3. function add_point_seg: 
+    update prob, update label 
+    part1: previous scene 
+    part2: structure (on going)
+4. keyframe for seg?
+'''
 class point3D:
-    def __init__(self,point_coor, point_color):
-        self.point_coor=point_coor
-        self.point_color=point_color
-        self.point_seg_list=[]
+    def __init__(self, point_coor, point_color, num_sem_categories = 8):
+        self.point_coor = point_coor
+        self.point_color = point_color
+        self.point_seg_list = []
+
+        # new
+        self.seg_prob_fused = np.ones(num_sem_categories, dtype=float)
+        self.label_thres = 0.8
 
         self.label = -1
-        self.branch_array=[None, None, None, None, None, None, None, None]
-        self.branch_distance=np.full((8),0.15)
-        self.frame_id=0
+        self.branch_array = [None, None, None, None, None, None, None, None]
+        self.branch_distance = np.full((8),0.15)
+        self.frame_id = 0
         
 
     def add_point_seg(self, point_seg):
+        
+        '''
+        point_seg : num_sem_categories * 1, probs in one frame
+        '''
+        activate_3d = True
+
+        # record prob
         self.point_seg_list.append(point_seg)
 
+        # None-3d version
+        if activate_3d is False :
+            return
+        
+        # part1: previous scenes
+        # update prob
+        self.seg_prob_fused *= point_seg.reshape(-1)
+        self.seg_prob_fused /= np.sum(self.seg_prob_fused) # Normalization
+        # update label
+        if np.max(self.seg_prob_fused) > self.label_thres or self.label == -1:
+            self.label = np.argmax(self.seg_prob_fused)
 
-    # def set_point_label(self, point_label):
-    #     self.label=point_label
+        # part2: structure
+        pass
 
 
 class GL_tree:
@@ -103,6 +135,9 @@ class GL_tree:
 
     def add_points(self, points, point_seg, points_color, points_label,frame_index):
 
+        # add to the global (to do)
+        activate_3d = True
+        
         per_image_node_set=set()
 
         for p in range(points.shape[0]):
@@ -123,10 +158,11 @@ class GL_tree:
                 if distance < self.opt.min_octree_threshold:
                     is_find_nearest = True
                     if frame_index!=point_iter.frame_id:
-                        #2D3D fusion
+                        #2D-3D fusion
                         point_iter.add_point_seg(point_seg[p, :])
                         point_iter.frame_id=frame_index
-                        point_iter.label = points_label[p]
+                        if activate_3d is False :
+                            point_iter.label = points_label[p]
                     per_image_node_set.add(point_iter)
                     break
                 x = int(point_iter.point_coor[0] >= points[p, 0])
@@ -142,7 +178,8 @@ class GL_tree:
             if not is_find_nearest:
                 new_3dpoint = point3D(points[p, :], points_color[p, :])
                 new_3dpoint.add_point_seg(point_seg[p, :])
-                new_3dpoint.label = points_label[p]
+                if activate_3d is False :
+                    new_3dpoint.label = points_label[p]
                 for point_branch in branch_record:
                     point_branch[0].branch_array[point_branch[1]] = new_3dpoint
                     point_branch[0].branch_distance[point_branch[1]] = point_branch[2]
@@ -163,7 +200,6 @@ class GL_tree:
 
     def all_points(self):
         return self.scene_node
-
 
     def node_to_points_ply(self, file_name, point_nodes):
 
