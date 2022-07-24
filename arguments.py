@@ -158,7 +158,7 @@ def get_args():
     parser.add_argument('--map_size_cm', type=int, default=4800)
     parser.add_argument('--map_point_size', type=int, default=4096) 
 
-    parser.add_argument('--checkpt', type=str, default="rednet_semmap_mp3d_tuned.pth",
+    parser.add_argument('--checkpt', type=str, default="/home/jiazhaozhang/project/navigation/GoalNavigation/rednet_semmap_mp3d_tuned.pth",
                         help='path to rednet models')
 
 

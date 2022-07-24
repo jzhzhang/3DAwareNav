@@ -3,7 +3,9 @@ from queue import Queue
 import time
 from GLtree.interval_tree import RedBlackTree, Node, BLACK, RED, NIL
 import random
-from constants import color_palette_array
+from constants import color_palette_array, habitat_labels
+# from constants import
+
 # from utils.ply import
 
 
@@ -67,7 +69,7 @@ Liu Dai & Fanpeng Meng update in 23 July 2022
 4. keyframe for seg?
 '''
 class point3D:
-    def __init__(self, point_coor, point_color, num_sem_categories = 8):
+    def __init__(self, point_coor, point_color, num_sem_categories = len(habitat_labels)):
         self.point_coor = point_coor
         self.point_color = point_color
         self.point_seg_list = []
