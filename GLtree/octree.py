@@ -76,7 +76,7 @@ class point3D:
 
         # new
         self.seg_prob_fused = np.ones(num_sem_categories, dtype=float)
-        self.label_thres = 0.8
+        self.label_thres = 1/len(habitat_labels)
 
         self.label = -1
         self.branch_array = [None, None, None, None, None, None, None, None]
@@ -124,10 +124,12 @@ class GL_tree:
         del self.x_rb_tree
         del self.y_rb_tree
         del self.z_rb_tree
+        del self.scene_node
 
         self.x_rb_tree = RedBlackTree(self.opt.interval_size)
         self.y_rb_tree = RedBlackTree(self.opt.interval_size)
         self.z_rb_tree = RedBlackTree(self.opt.interval_size)
+        self.scene_node = set()
 
     def init_points_node(self, points):
         self.x_tree_node_list = []
