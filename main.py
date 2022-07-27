@@ -367,7 +367,7 @@ def main():
     # pdb.set_trace()
 
     _, local_map, _, local_pose, full_map_entropy_points, full_map_goal_points, obs_entropy_points, obs_goal_points = \
-        sem_map_module(obs, poses, local_map, local_pose, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id, gl_tree_list, infos)
+        sem_map_module(obs, poses, local_map, local_pose, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id, gl_tree_list, infos, wait_env)
 
 
     # Compute Global policy input
@@ -502,8 +502,6 @@ def main():
                     episode_agent_success.append(agent_success)
                     episode_softspl.append(softspl)
 
-
-
                 wait_env[e] = 1.
                 update_intrinsic_rew(e)
                 init_map_and_pose_for_env(e)
@@ -531,7 +529,7 @@ def main():
                  in range(num_scenes)]))
 
         _, local_map, _, local_pose, full_map_entropy_points, full_map_goal_points, obs_entropy_points, obs_goal_points = \
-            sem_map_module(obs, poses, local_map, local_pose, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id, gl_tree_list, infos)
+            sem_map_module(obs, poses, local_map, local_pose, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id, gl_tree_list, infos, wait_env)
 
 
         locs = local_pose.cpu().numpy()
@@ -719,8 +717,10 @@ def main():
                 #                                     :].argmax(0).cpu().numpy()
                 p_input['sem_map_pred'] = local_map_thres.argmax(0).cpu().numpy()
 
+        # print("plannar input", planner_inputs[0]['wait'])
 
         obs, _, done, infos = envs.plan_act_and_preprocess(planner_inputs)
+
         # ------------------------------------------------------------------
 
         # ------------------------------------------------------------------

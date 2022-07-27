@@ -205,17 +205,20 @@ class Semantic_Mapping(nn.Module):
         ).float().to(self.device)
 
         # logging information ##############################
-        self.mapping_infos=[]
-        for _ in range(args.num_processes):
-            m_info = dict()
-            m_info["timestep"] = 0
-            m_info["seq_num"] = 0
-            self.mapping_infos.append(m_info)
+        # self.mapping_infos=[]
+        # for _ in range(args.num_processes):
+        #     m_info = dict()
+        #     m_info["timestep"] = 0
+        #     m_info["seq_num"] = 0
+        #     self.mapping_infos.append(m_info)
 
 
 
 
-    def forward(self, obs, pose_obs, maps_last, poses_last, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id, gl_tree_list, infos):
+    def forward(self, obs, pose_obs, maps_last, poses_last, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id, gl_tree_list, infos, wait_env):
+
+        # print(wait_env)
+
         bs, c, h, w = obs.size()
         depth = obs[:, 3, :, :]
 
@@ -344,6 +347,8 @@ class Semantic_Mapping(nn.Module):
 
         import time
         for e in range(bs):
+            # if wait_env[e]:
+            #     continue
             time_s = time.time()
 
             world_view_t = du.transform_pose_t2(
@@ -374,10 +379,7 @@ class Semantic_Mapping(nn.Module):
 
             # print(indx)
 
-            print("world_view_label", world_view_sem[indx].shape)
-
-
-            print(world_view_label.shape)
+            print("world_view_label shape", world_view_sem[indx].shape)
             print("world_viwe_label", world_view_label[indx])
 
             gl_tree = gl_tree_list[e]
@@ -387,13 +389,13 @@ class Semantic_Mapping(nn.Module):
             scene_nodes = gl_tree.all_points()
 
             # save results 
-            if infos[e]["timestep"] < self.mapping_infos[e]["timestep"]:
-                self.mapping_infos[e]["seq_num"] +=1 
-            self.mapping_infos[e]["timestep"] = infos[e]["timestep"]
+            # if infos[e]["timestep"] < self.mapping_infos[e]["timestep"]:
+            #     self.mapping_infos[e]["seq_num"] +=1 
+            # self.mapping_infos[e]["timestep"] = infos[e]["timestep"]
 
                 # self.time_step = infos[e]["timestep"]
 
-            gl_tree.node_to_points_ply("tmp/points/seq_{0}_step_{1}.ply".format(self.mapping_infos[e]["seq_num"], self.mapping_infos[e]["timestep"]), scene_nodes)
+            gl_tree.node_to_points_ply("tmp/points/rank_{0}_eps_{1}_step_{2}.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
 
 
         # self.save_points_count+=1

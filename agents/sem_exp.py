@@ -82,6 +82,8 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
             self.vis_image = vu.init_vis_image(self.goal_name, self.legend)
 
         self.info['timestep'] = self.timestep
+        self.info['episode_no'] = self.episode_no
+        self.info['rank'] = self.rank
 
         return obs, info
 
@@ -105,6 +107,8 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
             info (dict): contains timestep, pose, goal category and
                          evaluation metric info
         """
+
+
 
         # plan
         if planner_inputs["wait"]:
@@ -130,6 +134,8 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
             self._visualize(planner_inputs)
 
         self.info['timestep'] = self.timestep
+        self.info['episode_no'] = self.episode_no
+        self.info['rank'] = self.rank
 
         if action >= 0:
 
@@ -409,6 +415,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
 
     def _visualize(self, inputs):
+        print("===================== vis img {0}_{1}==========================".format(self.episode_no, self.timestep ))
         args = self.args
         dump_dir = "{}/dump/{}/".format(args.dump_location,
                                         args.exp_name)

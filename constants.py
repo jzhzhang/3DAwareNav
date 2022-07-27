@@ -253,7 +253,7 @@ habitat_labels = {
             'toilet':3, # in resnet
             'tv_monitor':4, # in resnet
             'sofa':5,
-            'cabinet':6, #g
+            'cabinet':6, #background
 }
 
 
