@@ -244,7 +244,8 @@ class GL_tree:
                         str(points_coor[1]) + " " +
                         str(points_coor[2]))
 
-            label_id = points_list[i].label+3
+            label_id = points_list[i].label+5
+            label_id = label_id if label_id<11 else 1
 
             if label_id<0:
                 print("==================== label id < 0 !!!!")
