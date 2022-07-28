@@ -80,7 +80,7 @@ class point3D:
 
         self.label = -1
         self.branch_array = [None, None, None, None, None, None, None, None]
-        self.branch_distance = np.full((8),0.15)
+        self.branch_distance = np.full((8),15)
         self.frame_id = 0
 
 
@@ -146,6 +146,8 @@ class GL_tree:
             self.z_tree_node_list.append(z_temp_node)
 
     def add_points(self, points, point_seg, points_color, points_label,frame_index):
+        
+        print("frame_index", frame_index)
 
         # add to the global (to do)
         activate_3d = True
@@ -153,7 +155,7 @@ class GL_tree:
         per_image_node_set=set()
 
         for p in range(points.shape[0]):
-    
+            
             x_set_union = self.x_tree_node_list[p].set_list
             y_set_union = self.y_tree_node_list[p].set_list
             z_set_union = self.z_tree_node_list[p].set_list
@@ -164,14 +166,16 @@ class GL_tree:
             branch_record = set()
             list_intersection=list(set_intersection)
             random.shuffle(list_intersection)
-
+            # print("list size", len(list_intersection))
             for point_iter in list_intersection:
                 distance = np.sum(np.absolute(point_iter.point_coor - points[p,:]))
+                # print("distance", distance)
                 if distance < self.opt.min_octree_threshold:
                     is_find_nearest = True
                     if frame_index!=point_iter.frame_id:
                         #2D-3D fusion
                         point_iter.add_point_seg(point_seg[p, :])
+                        # print("add2!")
                         point_iter.frame_id=frame_index
                         if activate_3d is False :
                             point_iter.label = points_label[p]
@@ -183,6 +187,8 @@ class GL_tree:
                 branch_num= x * 4 + y * 2 + z
                 if distance < point_iter.branch_distance[7-branch_num]:
                     branch_record.add((point_iter, 7 - branch_num, distance))
+                    # point_iter.add_point_seg(point_seg[p, :])
+                    # exit(0)
                     if distance < temp_branch_distance[branch_num]:
                         temp_branch[branch_num] = point_iter
                         temp_branch_distance[branch_num] = distance
@@ -190,6 +196,7 @@ class GL_tree:
             if not is_find_nearest:
                 new_3dpoint = point3D(points[p, :], points_color[p, :])
                 new_3dpoint.add_point_seg(point_seg[p, :])
+                new_3dpoint.frame_id = frame_index
                 if activate_3d is False :
                     new_3dpoint.label = points_label[p]
                 for point_branch in branch_record:
@@ -206,6 +213,11 @@ class GL_tree:
                     y_set.add(new_3dpoint)
                 for z_set in z_set_union:
                     z_set.add(new_3dpoint)
+
+            # set_intersection = x_set_union[0] & y_set_union[0] & z_set_union[0]
+            # print("len(set_intersection)", len(set_intersection))
+
+
 
         self.scene_node = self.scene_node.union(per_image_node_set)
         return per_image_node_set

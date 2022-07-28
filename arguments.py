@@ -169,11 +169,15 @@ def get_args():
 
     # GL tree
     parser.add_argument('--point_size', type=int, default=512)
-    parser.add_argument('--min_octree_threshold', type=float, default=0.04)
-    parser.add_argument('--max_octree_threshold', type=float, default=0.15)
-    parser.add_argument('--interval_size', type=float, default=0.035)
-    parser.add_argument('--scene_path', type=str, default="data/scene_0.h5")
-    parser.add_argument('--use_vis', type=int, default="1")
+    # parser.add_argument('--min_octree_threshold', type=float, default=0.08)
+    # parser.add_argument('--max_octree_threshold', type=float, default=0.15)
+    parser.add_argument('--min_octree_threshold', type=float, default=4)
+    parser.add_argument('--max_octree_threshold', type=float, default=15)
+    parser.add_argument('--interval_size', type=float, default=35)
+
+    # parser.add_argument('--interval_size', type=float, default=0.035)
+    # parser.add_argument('--scene_path', type=str, default="data/scene_0.h5")
+    # parser.add_argument('--use_vis', type=int, default="1")
 
     # parse arguments
     args = parser.parse_args()

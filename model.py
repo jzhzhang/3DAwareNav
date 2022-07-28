@@ -357,7 +357,8 @@ class Semantic_Mapping(nn.Module):
             world_view_sem_t = obs[e, 4:4+(self.num_sem_categories), :, :].reshape((self.num_sem_categories), -1).transpose(0, 1)
 
             non_zero_row_1 = torch.abs(point_cloud_t_3d[e,...].reshape(-1,3)).sum(dim=1) > 0
-            non_zero_row_2 = torch.abs(world_view_sem_t).sum(dim=1) > 0
+            # non_zero_row_2 = torch.abs(world_view_sem_t).sum(dim=1) > 0
+            non_zero_row_2 = torch.argmax(world_view_sem_t, dim=1) != 6
 
             non_zero_row = non_zero_row_1 & non_zero_row_2
 
@@ -388,17 +389,15 @@ class Semantic_Mapping(nn.Module):
             print(time.time() - time_s)
             scene_nodes = gl_tree.all_points()
 
-            # save results 
-            # if infos[e]["timestep"] < self.mapping_infos[e]["timestep"]:
-            #     self.mapping_infos[e]["seq_num"] +=1 
-            # self.mapping_infos[e]["timestep"] = infos[e]["timestep"]
 
-                # self.time_step = infos[e]["timestep"]
 
             gl_tree.node_to_points_ply("tmp/points/rank_{0}_eps_{1}_step_{2}.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
+            # print("len(scene_nodes)", len(scene_nodes))
+            # statistic_array = np.zeros(10)
+            # for test_points in scene_nodes:
+            #     statistic_array[len(test_points.point_seg_list)] +=1
+            # print("points",  statistic_array/np.sum(statistic_array))
 
-
-        # self.save_points_count+=1
 
         maps2 = torch.cat((maps_last.unsqueeze(1), translated.unsqueeze(1)), 1)
 
