@@ -347,6 +347,10 @@ class Semantic_Mapping(nn.Module):
 
         import time
         for e in range(bs):
+            if str(infos[e]["episode_no"]) == '14':
+                print(cut)
+            if str(infos[e]["episode_no"]) != '13':
+                continue
             # if wait_env[e]:
             #     continue
             time_s = time.time()
@@ -390,13 +394,19 @@ class Semantic_Mapping(nn.Module):
             scene_nodes = gl_tree.all_points()
 
 
-
             gl_tree.node_to_points_ply("tmp/points/rank_{0}_eps_{1}_step_{2}.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
-            # print("len(scene_nodes)", len(scene_nodes))
-            # statistic_array = np.zeros(10)
-            # for test_points in scene_nodes:
-            #     statistic_array[len(test_points.point_seg_list)] +=1
-            # print("points",  statistic_array/np.sum(statistic_array))
+            
+            if str(infos[e]["timestep"]) == '64':
+                gray_points = 0
+                print("len(scene_nodes)", len(scene_nodes))
+                statistic_array = np.zeros(15,dtype=int)
+                for test_points in scene_nodes:
+                    statistic_array[len(test_points.point_seg_list)] +=1
+                    if test_points.label == 6:
+                        gray_points += 1
+                print("gray points numbers:",gray_points)
+                print("points",  statistic_array)
+                print(cut)
 
 
         maps2 = torch.cat((maps_last.unsqueeze(1), translated.unsqueeze(1)), 1)

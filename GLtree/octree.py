@@ -4,6 +4,8 @@ import time
 from GLtree.interval_tree import RedBlackTree, Node, BLACK, RED, NIL
 import random
 from constants import color_palette_array, habitat_labels
+import pydensecrf.densecrf as dcrf
+from matplotlib import cm
 # from constants import
 
 # from utils.ply import
@@ -76,7 +78,8 @@ class point3D:
 
         # new
         self.seg_prob_fused = np.ones(num_sem_categories, dtype=float)
-        self.label_thres = 1/len(habitat_labels)
+        self.label_thres = 0.5
+        self.max_prob = 0.0
 
         self.label = -1
         self.branch_array = [None, None, None, None, None, None, None, None]
@@ -102,8 +105,25 @@ class point3D:
         # update prob
         self.seg_prob_fused *= point_seg.reshape(-1)
         self.seg_prob_fused /= np.sum(self.seg_prob_fused) # Normalization
+
+        self.max_prob = np.max(self.seg_prob_fused)
+        # if np.argmax(self.seg_prob_fused) != np.argmax(point_seg.reshape(-1)):
+        #     file_path = "1_count_new_argmax.txt"
+        #     f = open(file_path, "a")
+        #     f.write('argmax_fused:'+str(np.argmax(self.seg_prob_fused))+' ; '+'argmax_new_frame:'+str(np.argmax(point_seg.reshape(-1))))
+        #     f.write('\r\n') # change line
+
         # update label
         if np.max(self.seg_prob_fused) > self.label_thres or self.label == -1:
+            
+            # if self.label != -1 and np.argmax(self.seg_prob_fused) != np.argmax(point_seg.reshape(-1)):
+            #     if self.label != 6 :
+            #         file_path = "1_count_new_argmax.txt"
+            #         f = open(file_path, "a")
+            #         f.write('argmax_fused:'+str(np.argmax(self.seg_prob_fused))+' ; '+'argmax_new_frame:'+str(np.argmax(point_seg.reshape(-1))))
+            #         f.write('\r\n') # change line
+            #     self.label = 6
+            # else:
             self.label = np.argmax(self.seg_prob_fused)
 
         # part2: structure
@@ -217,6 +237,70 @@ class GL_tree:
             # set_intersection = x_set_union[0] & y_set_union[0] & z_set_union[0]
             # print("len(set_intersection)", len(set_intersection))
 
+        use_crf = False
+        if use_crf :
+            if len(per_image_node_set) > 0 :
+                ############## dense crf on the nodes in each frame ##############
+                d = dcrf.DenseCRF(len(per_image_node_set), len(habitat_labels))
+                
+                U = np.zeros((len(habitat_labels),len(per_image_node_set)), dtype=np.float32) # 7*N
+                xyz_pc = np.zeros((len(per_image_node_set),3), dtype=np.float32) # N*3
+                feat_pc = np.zeros((len(per_image_node_set),3), dtype=np.float32) # N*3
+
+                origin_label = np.ones(len(per_image_node_set), dtype=int)
+
+                # unary potential
+                for index, node in enumerate(per_image_node_set):
+                    U[ : , index] = node.seg_prob_fused
+                    xyz_pc[index, : ] = node.point_coor # same shape?
+                    feat_pc[index, : ] = node.point_color # same shape?
+
+                    origin_label[index] = node.label
+                
+                #print(U)
+                U = -np.log(U)
+                #print(U)
+                d.setUnaryEnergy(U)
+
+                # pairwise potensial
+                # gaussian
+                p_gaussian = np.zeros((xyz_pc.shape[1], xyz_pc.shape[0]))
+                xyz_pc_min, xyz_pc_max = np.min(xyz_pc, axis=0), np.max(xyz_pc, axis=0)
+                pp = (xyz_pc - xyz_pc_min) / (xyz_pc_max - xyz_pc_min)
+                pp = pp.transpose()
+                for i in range(p_gaussian.shape[0]):
+                    p_gaussian[i, :] == pp[i,:]
+                d.addPairwiseEnergy(p_gaussian.astype(np.float32),3)
+
+                # bilateral
+                xyz_pc_min, xyz_pc_max = np.min(xyz_pc, axis=0), np.max(xyz_pc, axis=0)
+                p_bilateral = np.zeros((xyz_pc.shape[1]+feat_pc.shape[1], feat_pc.shape[0]))
+
+                p_xyz = (xyz_pc - xyz_pc_min) / (xyz_pc_max-xyz_pc_min)
+                p_xyz = p_xyz.transpose() # (3,N)
+
+                p_feat = feat_pc
+                p_feat = p_feat.transpose() #(C,N)
+
+                p_bilateral[:p_xyz.shape[0]] = p_xyz
+                p_bilateral[p_xyz.shape[0]:] = p_feat
+
+                d.addPairwiseEnergy(p_bilateral.astype(np.float32),1)
+
+                # inference
+                Q = d.inference(5)
+                MAP = np.argmax(Q, axis=0).reshape(-1)
+                
+                # print("Origin Labels:")
+                # print(origin_label)
+                # print("MAP:")
+                # print(MAP)
+                # print(cut)
+
+                # update label
+                for index, node in enumerate(per_image_node_set):
+                    node.label = MAP[index]
+                ############## dense crf on the nodes in each frame ##############
 
 
         self.scene_node = self.scene_node.union(per_image_node_set)
@@ -263,8 +347,13 @@ class GL_tree:
                 print("==================== label id < 0 !!!!")
 
 
-            rgb = color_palette_array[label_id, :]
-            # print(rgb)
+            # rgb = color_palette_array[label_id, :]
+            #print(rgb)
+
+            # colormap
+            prob = points_list[i].max_prob # 0~1
+            jet_colormap = cm.get_cmap('jet', 100)
+            rgb = jet_colormap(prob)
 
             ply_file.write(" "+str(int(rgb[0]*255)) + " " +
                             str(int(rgb[1]*255)) + " " +
