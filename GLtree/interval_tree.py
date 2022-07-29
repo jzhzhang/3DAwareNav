@@ -25,7 +25,8 @@ class Node:
         self.left = left
         self.right = right
         self.isEdge=isEdge
-        self.set_list=[set(),None,None]
+        # self.set_list=[set(),None,None]
+        self.set_list=[set(),set(),set()]
 
     def __repr__(self):
         return '{color} {val} Node'.format(color=self.color, val=self.value)

@@ -173,7 +173,7 @@ def get_args():
     # parser.add_argument('--max_octree_threshold', type=float, default=0.15)
     parser.add_argument('--min_octree_threshold', type=float, default=4)
     parser.add_argument('--max_octree_threshold', type=float, default=15)
-    parser.add_argument('--interval_size', type=float, default=35)
+    parser.add_argument('--interval_size', type=float, default=20)
 
     # parser.add_argument('--interval_size', type=float, default=0.035)
     # parser.add_argument('--scene_path', type=str, default="data/scene_0.h5")

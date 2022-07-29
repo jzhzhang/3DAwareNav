@@ -167,8 +167,28 @@ class GL_tree:
             list_intersection=list(set_intersection)
             random.shuffle(list_intersection)
             # print("list size", len(list_intersection))
+            # if len(list_intersection)>50:
+            #     self.node_to_points_ply("tmp/points/{0}.ply".format(len(list_intersection)), set_intersection)
+
+            #test intersection
+            # for i in range(len(list_intersection)):
+            #     for j in range(i+1,len(list_intersection)):
+            #         # print(np.sum(np.absolute(list_intersection[i].point_coor - list_intersection[j].point_coor)))
+            #         # if np.sum(np.absolute(list_intersection[i].point_coor - list_intersection[j].point_coor)) <self.opt.min_octree_threshold:
+            #         print(np.linalg.norm(list_intersection[i].point_coor - list_intersection[j].point_coor))
+            #         if np.linalg.norm(list_intersection[i].point_coor - list_intersection[j].point_coor) < self.opt.min_octree_threshold:
+            #             print("attention!!!!!!!!!")
+            #             print(list_intersection[i].point_coor)
+            #             print(list_intersection[j].point_coor)
+            #             print("================================")
+
+
+
+
             for point_iter in list_intersection:
-                distance = np.sum(np.absolute(point_iter.point_coor - points[p,:]))
+                # distance = np.sum(np.absolute(point_iter.point_coor - points[p,:]))
+                distance = np.linalg.norm(point_iter.point_coor - points[p,:])
+
                 # print("distance", distance)
                 if distance < self.opt.min_octree_threshold:
                     is_find_nearest = True
@@ -185,6 +205,7 @@ class GL_tree:
                 y = int(point_iter.point_coor[1] >= points[p, 1])
                 z = int(point_iter.point_coor[2] >= points[p, 2])
                 branch_num= x * 4 + y * 2 + z
+
                 if distance < point_iter.branch_distance[7-branch_num]:
                     branch_record.add((point_iter, 7 - branch_num, distance))
                     # point_iter.add_point_seg(point_seg[p, :])
@@ -192,6 +213,7 @@ class GL_tree:
                     if distance < temp_branch_distance[branch_num]:
                         temp_branch[branch_num] = point_iter
                         temp_branch_distance[branch_num] = distance
+                        
 
             if not is_find_nearest:
                 new_3dpoint = point3D(points[p, :], points_color[p, :])
@@ -206,6 +228,8 @@ class GL_tree:
                 new_3dpoint.branch_array = temp_branch
                 new_3dpoint.branch_distance = temp_branch_distance
                 per_image_node_set.add(new_3dpoint)
+
+
 
                 for x_set in x_set_union:
                     x_set.add(new_3dpoint)
