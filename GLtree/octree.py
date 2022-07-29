@@ -336,8 +336,62 @@ class GL_tree:
 
 
 
-    def node_to_points_ply(self, file_name, point_nodes):
+    def node_to_points_label_ply(self, file_name, point_nodes):
 
+        # point_count=point_cloud.shape[0]
+        ply_file = open(file_name, 'w')
+        ply_file.write("ply\n")
+        ply_file.write("format ascii 1.0\n")
+        ply_file.write("element vertex " + str(len(point_nodes)) + "\n")
+        ply_file.write("property float x\n")
+        ply_file.write("property float y\n")
+        ply_file.write("property float z\n")
+
+        ply_file.write("property uchar red\n")
+        ply_file.write("property uchar green\n")
+        ply_file.write("property uchar blue\n")
+
+        ply_file.write("end_header\n")
+
+
+        points_list = list(point_nodes)
+
+        for i in range(len(point_nodes)):
+
+            points_coor = points_list[i].point_coor
+
+            ply_file.write(str(points_coor[ 0]) + " " +
+                        str(points_coor[1]) + " " +
+                        str(points_coor[2]))
+
+            label_id = points_list[i].label+5
+            label_id = label_id if label_id<11 else 1
+
+            if label_id<0:
+                print("==================== label id < 0 !!!!")
+
+
+            rgb = color_palette_array[label_id, :]
+            #print(rgb)
+
+            # colormap
+            # prob = points_list[i].max_prob # 0~1
+            # jet_colormap = cm.get_cmap('jet', 100)
+            # rgb = jet_colormap(prob)
+
+            ply_file.write(" "+str(int(rgb[0]*255)) + " " +
+                            str(int(rgb[1]*255)) + " " +
+                            str(int(rgb[2]*255)))
+
+
+            ply_file.write("\n")
+
+        ply_file.close()
+        print("save result to " + file_name)
+            
+            
+    def node_to_points_prob_ply(self, file_name, point_nodes):
+    
         # point_count=point_cloud.shape[0]
         ply_file = open(file_name, 'w')
         ply_file.write("ply\n")
@@ -388,7 +442,4 @@ class GL_tree:
 
         ply_file.close()
         print("save result to " + file_name)
-            
-            
-
             

@@ -8,6 +8,7 @@ from utils.model import get_grid, ChannelPool, Flatten, NNBase
 import envs.utils.depth_utils as du
 from utils.pointnet import PointNetEncoder, PointNetEncoder_STN
 from utils.ply import write_ply_xyz, write_ply_xyz_rgb
+from utils.img_save import save_semantic
 # from pytorch3d.ops import sample_farthest_points
 # 3DV
 
@@ -222,6 +223,7 @@ class Semantic_Mapping(nn.Module):
         bs, c, h, w = obs.size()
         depth = obs[:, 3, :, :]
 
+
         # depth[depth>500] =0
 
         point_cloud_t = du.get_point_cloud_from_z_t(
@@ -347,12 +349,16 @@ class Semantic_Mapping(nn.Module):
 
         import time
         for e in range(bs):
-            if str(infos[e]["episode_no"]) == '14':
-                print(cut)
-            if str(infos[e]["episode_no"]) != '13':
-                continue
+            # if str(infos[e]["episode_no"]) == '14':
+            #     print(cut)
+            # if str(infos[e]["episode_no"]) != '13':
+            #     continue
             # if wait_env[e]:
             #     continue
+
+            sem_obs = obs[e, 4:4+(self.num_sem_categories), :, :].permute(1, 2, 0).cpu().numpy()
+            save_semantic("tmp/points/rank_{0}_eps_{1}_step_{2}.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), sem_obs)
+
             time_s = time.time()
 
             world_view_t = du.transform_pose_t2(
@@ -394,19 +400,19 @@ class Semantic_Mapping(nn.Module):
             scene_nodes = gl_tree.all_points()
 
 
-            gl_tree.node_to_points_ply("tmp/points/rank_{0}_eps_{1}_step_{2}.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
+            gl_tree.node_to_points_prob_ply("tmp/points/rank_{0}_eps_{1}_step_{2}.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
             
-            if str(infos[e]["timestep"]) == '64':
-                gray_points = 0
-                print("len(scene_nodes)", len(scene_nodes))
-                statistic_array = np.zeros(15,dtype=int)
-                for test_points in scene_nodes:
-                    statistic_array[len(test_points.point_seg_list)] +=1
-                    if test_points.label == 6:
-                        gray_points += 1
-                print("gray points numbers:",gray_points)
-                print("points",  statistic_array)
-                print(cut)
+            # if str(infos[e]["timestep"]) == '64':
+            #     gray_points = 0
+            #     print("len(scene_nodes)", len(scene_nodes))
+            #     statistic_array = np.zeros(15,dtype=int)
+            #     for test_points in scene_nodes:
+            #         statistic_array[len(test_points.point_seg_list)] +=1
+            #         if test_points.label == 6:
+            #             gray_points += 1
+            #     print("gray points numbers:",gray_points)
+            #     print("points",  statistic_array)
+            #     print(cut)
 
 
         maps2 = torch.cat((maps_last.unsqueeze(1), translated.unsqueeze(1)), 1)
