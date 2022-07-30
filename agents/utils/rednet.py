@@ -524,38 +524,23 @@ class SemanticPredRedNet():
         semantic_input = np.zeros((img.shape[1], img.shape[2], len(habitat_labels) ))
         for i in range(0, 40):
             if i in fourty221.keys():
-                # output[i][mask != i] = 0
                 j = fourty221[i]
-                # if (not (self.gt_mask is None)) and j == self.goal_cat:
-                #     semantic_input[:,:,j] += np.copy(self.gt_mask)
-                #     self.gt_mask = None
-                # else:
                 semantic_input[:, :, j] += (output[i]).cpu().numpy()
             else:
                 semantic_input[:, :, -1] += (output[i]).cpu().numpy()
 
 
 
-        # softmax = np.argmax(semantic_input, axis = 2)
-        # print("semantic segmentation 1", semantic_input[0,0,:])
+
         semantic_input = np.exp(semantic_input)/np.sum(np.exp(semantic_input), axis=2)[...,None]
-        # print("semantic_input shape", semantic_input.shape)
-        # print("semantic_input", semantic_input)
-        # print("semantic segmentation 2", semantic_input[0,0,:])
-
-        # exit(0)
-
 
 
         #=================prob points================
         goal_cat_output = semantic_input[:, :, cat_goal] + 1e-5
         goal_cat_output[goal_cat_output<0] = 0
 
-        # semantic_input = semantic_input * 0.1
-        # semantic_input[semantic_input<self.threshold] = 0 #0.9: 30 1.1: 26
 
-
-        return semantic_input, mask, sem_entropy, goal_cat_output
+        return semantic_input, sem_entropy, goal_cat_output
 
     def set_gt_mask(self,gt_mask,goal_cat): # goal cat is as it is in fourty221 mapping
         self.gt_mask = gt_mask

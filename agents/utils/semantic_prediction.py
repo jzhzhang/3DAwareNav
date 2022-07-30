@@ -16,7 +16,7 @@ from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.utils.visualizer import ColorMode, Visualizer
 import detectron2.data.transforms as T
 
-from constants import coco_categories_mapping, coco_index_mapping_array
+from constants import coco_categories_mapping
 from skimage import io
 
 class SemanticPredMaskRCNN():
@@ -25,7 +25,7 @@ class SemanticPredMaskRCNN():
         self.segmentation_model = ImageSegmentation(args)
         self.args = args
 
-    def get_prediction(self, img):
+    def get_prediction(self, img, depth, cat_goal):
         args = self.args
         image_list = []
         img = img[:, :, ::-1]
@@ -36,16 +36,8 @@ class SemanticPredMaskRCNN():
         if args.visualize == 2:
             img = vis_output.get_image()
 
-        # import pdb
-        # pdb.set_trace()
-
-        semantic_input = np.zeros((img.shape[0], img.shape[1], 15 + 1))
-
-        semantic_probability = np.zeros((img.shape[0], img.shape[1], 15 + 1))
-        # print(seg_predictions)
-        # print("sem_seg",seg_predictions[0]['sem_seg'].shape)
-
-
+        semantic_input = np.zeros((img.shape[0], img.shape[1], 6 + 1))
+        semantic_probability = np.zeros((img.shape[0], img.shape[1], 6 + 1))
 
         for j, class_idx in enumerate(
                 seg_predictions[0]['instances'].pred_classes.cpu().numpy()):
@@ -56,28 +48,20 @@ class SemanticPredMaskRCNN():
                 semantic_input[:, :, idx] += obj_mask.cpu().numpy()
 
 
-        semantic_pred = torch.nn.functional.softmax(seg_predictions[0]['sem_seg'], dim=0).permute(1,2,0).cpu().numpy()
-        # for i in range(semantic_pred.shape[-1]):
-            # io.imsave("/home/jiazhaozhang/project/navigation/Object-Goal-Navigation_3D_points/tmp/semantic_pread_"+str(i)+".png", (semantic_pred[:, :, i]*255).astype(np.uint8))
-            # io.imsave("/home/jiazhaozhang/project/navigation/Object-Goal-Navigation_3D_points/tmp/semantic_pread_1.png", (semantic_pred[:, :, 1]*255).astype(np.uint8))
-        # sem_pred_all = np.sum(semantic_pred, axis=2)
-        # io.imsave("/home/jiazhaozhang/project/navigation/Object-Goal-Navigation_3D_points/tmp/semantic_pread_all.png", (sem_pred_all*255).astype(np.uint8))
+        # print("xxxx",semantic_input[0, 0, :])
+        semantic_input[:,:, 6] = 1 - np.sum(semantic_input[:,:,:6], axis=2)
 
+        semantic_pred = torch.nn.functional.softmax(seg_predictions[0]['sem_seg'], dim=0).permute(1,2,0).cpu().numpy()
         entropy_tmp = -semantic_pred*np.log(semantic_pred)
         sem_entropy = np.sum(entropy_tmp, axis=2)
-        # io.imsave("/home/jiazhaozhang/project/navigation/Object-Goal-Navigation_3D_points/tmp/semantic_sem_entropy.png", (sem_entropy*255).astype(np.uint8))
-        # io.imsave("/home/jiazhaozhang/project/navigation/Object-Goal-Navigation_3D_points/tmp/rgb.png", (img).astype(np.uint8))
 
-
-        # exit(0)
-
+        #=================prob points================
+        goal_cat_output = semantic_input[:, :, cat_goal] + 1e-5
+        goal_cat_output[goal_cat_output<0] = 0
 
 
 
-        # print("semantic_probability")
-        # print(semantic_probability)
-        # exit(0)
-        return semantic_input, sem_entropy, img
+        return semantic_input, sem_entropy, goal_cat_output
 
 
 def compress_sem_map(sem_map):
@@ -110,7 +94,7 @@ class ImageSegmentation():
         if args.sem_gpu_id == -2:
             string_args += """ MODEL.DEVICE cpu"""
         else:
-            string_args += """ MODEL.DEVICE cuda:{}""".format(args.sem_gpu_id)
+            string_args += """ MODEL.DEVICE {}""".format(args.sem_gpu_id)
 
         string_args = string_args.split()
 
