@@ -32,10 +32,11 @@ def plot_save_output(obs, output):
 
 
 def save_semantic(output, sem_seg):
+    # non_zero_row = torch.abs(sem_seg).sum(dim=1) > 0
+
     sem_index = np.argmax(sem_seg, axis=2)
     sem_index = sem_index + 5
     sem_index[sem_index==11] = 1
-
     sem_seg = color_palette_array[sem_index]
 
     io.imsave(output, sem_seg)

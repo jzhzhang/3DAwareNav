@@ -8,7 +8,7 @@ from torchvision import transforms
 
 from envs.utils.fmm_planner import FMMPlanner
 from envs.habitat.objectgoal_env import ObjectGoal_Env
-# from agents.utils.semantic_prediction import SemanticPredMaskRCNN
+from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from constants import color_palette
 import envs.utils.pose as pu
 import agents.utils.visualization as vu
@@ -37,7 +37,8 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         if args.sem_gpu_id == -1:
             args.sem_gpu_id = config_env.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID
 
-        self.sem_pred_rednet = SemanticPredRedNet(args)
+        # self.sem_pred_model = SemanticPredRedNet(args)
+        self.sem_pred_model = SemanticPredMaskRCNN(args)
 
         # initializations for planning:
         self.selem = skimage.morphology.disk(3)
@@ -324,9 +325,6 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
         sem_seg_pred, sem_seg_entropy, sem_goal_pred = self._get_sem_pred(rgb.astype(np.uint8), depth, cat_goal_id)
 
-        # semantic_pred, mask, sem_entropy, sem_goal_prob = self.sem_pred_rednet.get_prediction(rgb, depth, cat_id)
-        # semantic_pred = semantic_pred.astype(np.float32)
-
 
         depth = self._preprocess_depth(depth, args.min_depth, args.max_depth)
 
@@ -373,15 +371,8 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
 
     def _get_sem_pred(self, rgb, depth, cat_goal):
-        # if use_seg:
-        #     semantic_pred, semantic_probability, self.rgb_vis = self.sem_pred.get_prediction(rgb)
-        #     semantic_pred = semantic_pred.astype(np.float32)
-        # else:
-        #     semantic_pred = np.zeros((rgb.shape[0], rgb.shape[1], 16))
-        #     self.rgb_vis = rgb[:, :, ::-1]
 
-        semantic_pred, mask, sem_entropy, sem_goal_prob = self.sem_pred_rednet.get_prediction(rgb, depth, cat_goal)
-        # draw_sem_img(semantic_pred, mask, rgb, sem_entropy, sem_goal_prob, output_path="tmp/sem_"+str(self.timestep)+".png")
+        semantic_pred, sem_entropy, sem_goal_prob = self.sem_pred_model.get_prediction(rgb, depth, cat_goal)
         self.rgb_vis = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
 
         return semantic_pred, sem_entropy, sem_goal_prob

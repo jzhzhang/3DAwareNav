@@ -147,7 +147,7 @@ def get_args():
 
     parser.add_argument('--num_sem_categories', type=float, default=7)
     
-    parser.add_argument('--sem_pred_prob_thr', type=float, default=0.8,
+    parser.add_argument('--sem_pred_prob_thr', type=float, default=0.4,
                         help="Semantic prediction confidence threshold")
 
     # Mapping

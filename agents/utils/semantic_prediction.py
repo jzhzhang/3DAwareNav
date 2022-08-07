@@ -16,8 +16,9 @@ from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.utils.visualizer import ColorMode, Visualizer
 import detectron2.data.transforms as T
 
-from constants import coco_categories_mapping, coco_index_mapping_array
+from constants import coco_categories_mapping
 from skimage import io
+from scipy.special import softmax
 
 class SemanticPredMaskRCNN():
 
@@ -25,7 +26,7 @@ class SemanticPredMaskRCNN():
         self.segmentation_model = ImageSegmentation(args)
         self.args = args
 
-    def get_prediction(self, img):
+    def get_prediction(self, img, depth, cat_goal):
         args = self.args
         image_list = []
         img = img[:, :, ::-1]
@@ -36,48 +37,102 @@ class SemanticPredMaskRCNN():
         if args.visualize == 2:
             img = vis_output.get_image()
 
-        # import pdb
-        # pdb.set_trace()
-
-        semantic_input = np.zeros((img.shape[0], img.shape[1], 15 + 1))
-
-        semantic_probability = np.zeros((img.shape[0], img.shape[1], 15 + 1))
-        # print(seg_predictions)
-        # print("sem_seg",seg_predictions[0]['sem_seg'].shape)
-
-
+        semantic_input = np.zeros((img.shape[0], img.shape[1], 6 + 1))
+        semantic_probability = np.zeros((img.shape[0], img.shape[1], 6 + 1))
 
         for j, class_idx in enumerate(
                 seg_predictions[0]['instances'].pred_classes.cpu().numpy()):
+            
+            # all_class_scores = seg_predictions[0]['instances'].all_class_scores.cpu().numpy()
+            # print("seg_predictions[0]['instances'].all_class_scores.shape:")
+            # print(all_class_scores.shape)
+
+            # print("row sum:")
+            # print(np.sum(all_class_scores[0]))
+            # print(np.sum(all_class_scores[1]))
+            # print(np.sum(all_class_scores[2]))
+            # print(np.sum(all_class_scores[3]))
+
+            # print("row max:")
+            # print(np.max(all_class_scores[0]))
+            # print(np.max(all_class_scores[1]))
+            # print(np.max(all_class_scores[2]))
+            # print(np.max(all_class_scores[3]))
+
+            # print("max arg:")
+            # print(np.argmax(all_class_scores[0]),np.argmax(all_class_scores[1]),
+            #     np.argmax(all_class_scores[2]),np.argmax(all_class_scores[3]))
+
+            # score_matrix = seg_predictions[0]['instances'].scores.cpu().numpy()
+            # print("--------------------------------------------------")
+            # print("seg_predictions[0]['instances'].scores.shape:")
+            # print(score_matrix.shape)
+            # print("seg_predictions[0]['instances'].scores:")
+            # print(score_matrix)
+
+            # classes_matrix = seg_predictions[0]['instances'].pred_classes.cpu().numpy()
+            # print("--------------------------------------------------")
+            # print("seg_predictions[0]['instances'].pred_classes.shape:")
+            # print(classes_matrix.shape)
+            # print("seg_predictions[0]['instances'].pred_classes:")
+            # print(classes_matrix)
+            # print("--------------------------------------------------")
+
             if class_idx in list(coco_categories_mapping.keys()):
                 # print("class_idx", class_idx)
                 idx = coco_categories_mapping[class_idx]
                 obj_mask = seg_predictions[0]['instances'].pred_masks[j] * 1.
                 semantic_input[:, :, idx] += obj_mask.cpu().numpy()
 
+                #---------------------- semantic probs ---------------------- #
+                tmp_semantic_probability = np.zeros((img.shape[0], img.shape[1], 6 + 1))
 
-        semantic_pred = torch.nn.functional.softmax(seg_predictions[0]['sem_seg'], dim=0).permute(1,2,0).cpu().numpy()
-        # for i in range(semantic_pred.shape[-1]):
-            # io.imsave("/home/jiazhaozhang/project/navigation/Object-Goal-Navigation_3D_points/tmp/semantic_pread_"+str(i)+".png", (semantic_pred[:, :, i]*255).astype(np.uint8))
-            # io.imsave("/home/jiazhaozhang/project/navigation/Object-Goal-Navigation_3D_points/tmp/semantic_pread_1.png", (semantic_pred[:, :, 1]*255).astype(np.uint8))
-        # sem_pred_all = np.sum(semantic_pred, axis=2)
-        # io.imsave("/home/jiazhaozhang/project/navigation/Object-Goal-Navigation_3D_points/tmp/semantic_pread_all.png", (sem_pred_all*255).astype(np.uint8))
+                obj_all_class_scores = seg_predictions[0]['instances'].all_class_scores[j].cpu().numpy() # shape=80
 
+                #non_zero_index = np.nonzero(obj_mask.cpu().numpy())
+                sum_prob_ours = 0.0
+                for key in coco_categories_mapping.keys():
+                    index_coco = int(key)
+                    index_ours = int(coco_categories_mapping[key])
+                    tmp_semantic_probability[:,:,index_ours] += obj_all_class_scores[index_coco]
+                    sum_prob_ours += obj_all_class_scores[index_coco]
+                tmp_semantic_probability[:,:,-1] += np.sum(obj_all_class_scores) - sum_prob_ours # sum of other class score
+                #tmp_semantic_probability[:,:,-1] += 1 - sum_prob_ours # sum of other class score and bg
+
+                sum_normalize = np.sum(tmp_semantic_probability, axis=-1)
+                tmp_semantic_probability /= sum_normalize[...,None] # Normalize
+
+                # print(obj_mask.cpu().numpy().shape) #480*640
+                mask_filter = np.where(obj_mask.cpu().numpy()==0) #tuple, index of zeros
+                tmp_semantic_probability[mask_filter] = 0
+
+                # print("--------------------------------")
+                # print(tmp_semantic_probability[0,0,:])
+                # print(semantic_probability[0,0,:])
+                # print("--------------------------------")
+
+                semantic_probability += tmp_semantic_probability
+
+            #print(cut)
+                #---------------------- semantic probs ---------------------- #
+
+
+        # print("xxxx",semantic_input[0, 0, :])
+        semantic_input = semantic_probability
+        semantic_input[:,:,-1] = 1 - np.sum(semantic_input[:,:,:-1], axis=-1) # only make bk_prob = 1
+
+        #semantic_pred = torch.nn.functional.softmax(seg_predictions[0]['sem_seg'], dim=0).permute(1,2,0).cpu().numpy()
+        semantic_pred = semantic_input
         entropy_tmp = -semantic_pred*np.log(semantic_pred)
         sem_entropy = np.sum(entropy_tmp, axis=2)
-        # io.imsave("/home/jiazhaozhang/project/navigation/Object-Goal-Navigation_3D_points/tmp/semantic_sem_entropy.png", (sem_entropy*255).astype(np.uint8))
-        # io.imsave("/home/jiazhaozhang/project/navigation/Object-Goal-Navigation_3D_points/tmp/rgb.png", (img).astype(np.uint8))
 
-
-        # exit(0)
-
+        #=================prob points================
+        goal_cat_output = semantic_input[:, :, cat_goal] + 1e-5
+        goal_cat_output[goal_cat_output<0] = 0
 
 
 
-        # print("semantic_probability")
-        # print(semantic_probability)
-        # exit(0)
-        return semantic_input, sem_entropy, img
+        return semantic_input, sem_entropy, goal_cat_output
 
 
 def compress_sem_map(sem_map):
@@ -86,11 +141,12 @@ def compress_sem_map(sem_map):
         c_map[sem_map[i] > 0.] = i + 1
     return c_map
 
-
+# config-file configs/COCO-PanopticSegmentation/panoptic_fpn_R_50_3x.yaml
+# config-file configs/COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml
 class ImageSegmentation():
     def __init__(self, args):
         string_args = """
-            --config-file configs/COCO-PanopticSegmentation/panoptic_fpn_R_50_3x.yaml
+            --config-file configs/COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml
             --input input1.jpeg
             --confidence-threshold {}
             --opts MODEL.WEIGHTS
@@ -110,7 +166,7 @@ class ImageSegmentation():
         if args.sem_gpu_id == -2:
             string_args += """ MODEL.DEVICE cpu"""
         else:
-            string_args += """ MODEL.DEVICE cuda:{}""".format(args.sem_gpu_id)
+            string_args += """ MODEL.DEVICE {}""".format(args.sem_gpu_id)
 
         string_args = string_args.split()
 
