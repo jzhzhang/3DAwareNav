@@ -32,6 +32,7 @@ def plot_save_output(obs, output):
 
 
 def save_semantic(output, sem_seg):
+    print("save semantic ", output)
     # non_zero_row = torch.abs(sem_seg).sum(dim=1) > 0
 
     sem_index = np.argmax(sem_seg, axis=2)
