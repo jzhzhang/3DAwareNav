@@ -78,7 +78,7 @@ class point3D:
 
         # new
         self.seg_prob_fused = np.ones(num_sem_categories, dtype=float)
-        self.label_thres = 0.5
+        self.label_thres = 0.8
         self.max_prob = 0.0
 
         self.label = -1
@@ -101,33 +101,35 @@ class point3D:
         if activate_3d is False :
             return
         
-        # part1: previous scenes
+        #--------------- MAX Fusion ---------------#
+        # if self.label == -1: #init
+        #     self.label = np.argmax(point_seg.reshape(-1))
+        #     self.max_prob = np.max(point_seg.reshape(-1))
+        # else: #update
+        #     new_frame_max_prob = np.max(point_seg.reshape(-1))
+        #     if new_frame_max_prob > self.max_prob:
+        #         self.label = np.argmax(point_seg.reshape(-1))
+        #         self.max_prob = new_frame_max_prob
+        #--------------- MAX Fusion ---------------#
+
+        #--------------- Bayesian Fusion ---------------#
         # update prob
         self.seg_prob_fused *= point_seg.reshape(-1)
         self.seg_prob_fused /= np.sum(self.seg_prob_fused) # Normalization
-
-        self.max_prob = np.max(self.seg_prob_fused)
-        # if np.argmax(self.seg_prob_fused) != np.argmax(point_seg.reshape(-1)):
-        #     file_path = "1_count_new_argmax.txt"
-        #     f = open(file_path, "a")
-        #     f.write('argmax_fused:'+str(np.argmax(self.seg_prob_fused))+' ; '+'argmax_new_frame:'+str(np.argmax(point_seg.reshape(-1))))
-        #     f.write('\r\n') # change line
-
         # update label
         if np.max(self.seg_prob_fused) > self.label_thres or self.label == -1:
-            
-            # if self.label != -1 and np.argmax(self.seg_prob_fused) != np.argmax(point_seg.reshape(-1)):
-            #     if self.label != 6 :
-            #         file_path = "1_count_new_argmax.txt"
-            #         f = open(file_path, "a")
-            #         f.write('argmax_fused:'+str(np.argmax(self.seg_prob_fused))+' ; '+'argmax_new_frame:'+str(np.argmax(point_seg.reshape(-1))))
-            #         f.write('\r\n') # change line
-            #     self.label = 6
-            # else:
             self.label = np.argmax(self.seg_prob_fused)
+        #--------------- Bayesian Fusion ---------------#
 
-        # part2: structure
-        pass
+        #--------------- No Fusion latest frame---------------#
+        # self.label = np.argmax(point_seg.reshape(-1))
+        #--------------- No Fusion latest frame ---------------#
+
+        #--------------- No Fusion first frame ---------------#
+        # if self.label == -1: #init
+        #     self.label = np.argmax(point_seg.reshape(-1))
+        #     self.max_prob = np.max(point_seg.reshape(-1))
+        #--------------- No Fusion first frame ---------------#
 
 
 class GL_tree:
@@ -261,7 +263,7 @@ class GL_tree:
             # set_intersection = x_set_union[0] & y_set_union[0] & z_set_union[0]
             # print("len(set_intersection)", len(set_intersection))
 
-        use_crf = False
+        use_crf = True
         if use_crf :
             if len(per_image_node_set) > 0 :
                 ############## dense crf on the nodes in each frame ##############
@@ -313,17 +315,20 @@ class GL_tree:
 
                 # inference
                 Q = d.inference(5)
+
+                probs_matrix = np.array(Q)
+                #print("probs matrix shape:", probs_matrix.shape) # 7*N
+                #print(probs_matrix[:,1])
+
                 MAP = np.argmax(Q, axis=0).reshape(-1)
-                
-                # print("Origin Labels:")
-                # print(origin_label)
-                # print("MAP:")
-                # print(MAP)
-                # print(cut)
+                #print("map shape:", MAP.shape)
 
                 # update label
                 for index, node in enumerate(per_image_node_set):
-                    node.label = MAP[index]
+                    node.seg_prob_fused = probs_matrix[:,index]
+                    if np.max(node.seg_prob_fused) > node.label_thres:
+                        node.label = np.argmax(node.seg_prob_fused)
+                    #node.label = MAP[index]
                 ############## dense crf on the nodes in each frame ##############
 
 
@@ -387,7 +392,7 @@ class GL_tree:
             ply_file.write("\n")
 
         ply_file.close()
-        print("save result to " + file_name)
+        print("save rgb result to " + file_name)
             
             
     def node_to_points_prob_ply(self, file_name, point_nodes):
@@ -433,6 +438,15 @@ class GL_tree:
             jet_colormap = cm.get_cmap('jet', 100)
             rgb = jet_colormap(prob)
 
+            # if int(rgb[0]*255)==0 and int(rgb[1]*255)==0 and int(rgb[2]*255)==0:
+            #     print("black occurred")
+            #     print(points_list[i].seg_prob_fused)
+            #     print(points_list[i].label)
+            #     print(points_list[i].point_seg_list)
+            #     print(prob)
+            #     print(rgb)
+            #     print(cut)
+                
             ply_file.write(" "+str(int(rgb[0]*255)) + " " +
                             str(int(rgb[1]*255)) + " " +
                             str(int(rgb[2]*255)))
@@ -441,5 +455,5 @@ class GL_tree:
             ply_file.write("\n")
 
         ply_file.close()
-        print("save result to " + file_name)
+        print("save prob result to " + file_name)
             
