@@ -126,8 +126,8 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
 
 
-        # if (self.args.visualize or self.args.print_images) and (self.episode_no-1) % 3==0 and ( self.timestep == 499 or action == 0) :
-        #     self._visualize(planner_inputs)
+        if (self.args.visualize or self.args.print_images) and (self.episode_no-1) % 3==0 and ( self.timestep == 499 or action == 0) :
+            self._visualize(planner_inputs)
 
 
 

@@ -79,14 +79,14 @@ class SemanticPredMaskRCNN():
             # print("--------------------------------------------------")
 
             import time
-            t_s = time.time()
+            t_s = time.time() 
 
             if class_idx in list(coco_categories_mapping.keys()):
                 # print("class_idx", class_idx)
                 idx = coco_categories_mapping[class_idx]
                 obj_mask = seg_predictions[0]['instances'].pred_masks[j] * 1.
                 semantic_input[:, :, idx] += obj_mask.cpu().numpy()
-
+ 
                 #---------------------- semantic probs ---------------------- #
                 tmp_semantic_probability = np.zeros((img.shape[0], img.shape[1], 6 + 1))
 
@@ -115,7 +115,7 @@ class SemanticPredMaskRCNN():
                 # print("--------------------------------")
 
                 semantic_probability += tmp_semantic_probability
-            print(time.time() - t_s)
+            # print(time.time() - t_s)
             #print(cut)
                 #---------------------- semantic probs ---------------------- #
 
