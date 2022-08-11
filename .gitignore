@@ -143,5 +143,6 @@ tmp
 pretrained_models/
 data/
 data
-
+weight
+weight/
 *.pth

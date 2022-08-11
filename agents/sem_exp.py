@@ -131,8 +131,8 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
 
 
-        if (self.args.visualize or self.args.print_images) :
-            self._visualize(planner_inputs)
+        # if (self.args.visualize or self.args.print_images) :
+        #     self._visualize(planner_inputs)
 
         self.info['timestep'] = self.timestep
         self.info['episode_no'] = self.episode_no
@@ -145,7 +145,11 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
             obs, rew, done, info = super().step(action)
 
             # preprocess obs
+            # import time
+            # t_s = time.time()
             obs = self._preprocess_obs(obs,  info['goal_cat_id']) 
+            # print("mask rcnn", time.time() - t_s)
+
             self.last_action = action['action']
             self.obs = obs
             self.info = info
