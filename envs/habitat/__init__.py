@@ -113,10 +113,7 @@ def construct_envs(args):
             ]
             print("Thread {}: {}".format(i, config_env.DATASET.CONTENT_SCENES))
 
-        # print("num_processes", str(args.num_processes_on_first_gpu))
 
-        # if i < args.num_processes_on_first_gpu:
-        # gpu_id = gpu_visible_devices[int(i%len(gpu_visible_devices)==0)]
         gpu_id = gpu_visible_devices[int(i%len(gpu_visible_devices))]
 
 
