@@ -10,9 +10,8 @@ from utils.pointnet import PointNetEncoder, PointNetEncoder_STN
 from utils.ply import write_ply_xyz, write_ply_xyz_rgb
 from utils.img_save import save_semantic
 
-
 import os
-
+# from pytorch3d.ops import sample_farthest_points
 # 3DV
 
 
@@ -219,10 +218,10 @@ class Semantic_Mapping(nn.Module):
 
 
 
+
     def forward(self, obs, pose_obs, maps_last, poses_last, origins, observation_points, goal_cat_id, gl_tree_list, infos, wait_env, args):
 
         # print(wait_env)
-
 
         bs, c, h, w = obs.size()
         depth = obs[:, 3, :, :]
@@ -354,14 +353,12 @@ class Semantic_Mapping(nn.Module):
         for e in range(bs):
             # if str(infos[e]["episode_no"]) == '14':
             #     print(cut)
-
             # if str(infos[e]["episode_no"]) == '10':
             #     exit(0)
             # if wait_env[e]:
             #     continue
 
             # save_semantic("tmp/points/rank_{0}_eps_{1}_step_{2}.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), sem_obs)
-
 
             time_s = time.time()
 
@@ -375,8 +372,6 @@ class Semantic_Mapping(nn.Module):
             non_zero_row_3 = torch.argmax(world_view_sem_t, dim=1) != 6
 
             non_zero_row = non_zero_row_1 & non_zero_row_2 & non_zero_row_3
-
-
             world_view_sem = world_view_sem_t[non_zero_row].cpu().numpy()
 
             world_view_label = np.argmax(world_view_sem, axis=1)
@@ -398,7 +393,6 @@ class Semantic_Mapping(nn.Module):
             gl_tree.update_neighbor_points(per_frame_nodes)
 
 
-
             sample_points_tensor = torch.tensor(gl_tree.sample_points())   # local map
 
             # sample_points_tensor[:,:3] = sample_points_tensor[:,:3]/100
@@ -407,26 +401,8 @@ class Semantic_Mapping(nn.Module):
             sample_points_tensor[:,:3] = sample_points_tensor[:,:3] * 100 / args.map_resolution
 
 
-
             observation_points[e] = sample_points_tensor.transpose(1, 0)
             print(time.time() - time_s)
-            scene_nodes = gl_tree.all_points()
-
-
-            gl_tree.node_to_points_label_ply("tmp/points/rank_{0}_eps_{1}_step_{2}.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
-            
-            # if str(infos[e]["timestep"]) == '64':
-            #     gray_points = 0
-            #     print("len(scene_nodes)", len(scene_nodes))
-            #     statistic_array = np.zeros(15,dtype=int)
-            #     for test_points in scene_nodes:
-            #         statistic_array[len(test_points.point_seg_list)] +=1
-            #         if test_points.label == 6:
-            #             gray_points += 1
-            #     print("gray points numbers:",gray_points)
-            #     print("points",  statistic_array)
-            #     print(cut)
-
 
             #======================= visualize =====================
             # points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
@@ -441,7 +417,6 @@ class Semantic_Mapping(nn.Module):
             # save_semantic(points_dir+"rank_{0}_eps_{1}_step_{2}.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), sem_obs)
 
             
-
 
 
 
