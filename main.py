@@ -1,3 +1,4 @@
+import tensorflow
 from collections import deque, defaultdict
 import os
 import logging
@@ -145,17 +146,15 @@ def main():
     local_w = int(full_w / args.global_downscaling)
     local_h = int(full_h / args.global_downscaling)
 
-    map_points_size = args.map_point_size
     # Initializing full and local map
-    points_channel_num = 4
+    points_channel_num = 10
     full_map = torch.zeros(num_scenes, nc, full_w, full_h).float().to(device)
-    full_map_entropy_points = torch.zeros(num_scenes, points_channel_num, map_points_size).float().to(device)  # x, y, z, entropy
-    full_map_goal_points = torch.zeros(num_scenes, points_channel_num, map_points_size).float().to(device)  # x, y, z, goal_prob
-
-
-
     local_map = torch.zeros(num_scenes, nc, local_w,
                             local_h).float().to(device)
+
+    observation_points = torch.zeros(num_scenes, points_channel_num, args.map_point_size)
+
+
 
     print("=====full map=====", full_map.shape)
 
@@ -198,8 +197,7 @@ def main():
 
     def init_map_and_pose():
         full_map.fill_(0.)
-        full_map_entropy_points.fill_(0.)
-        full_map_goal_points.fill_(0.)
+        observation_points.fill_(0.)
         full_pose.fill_(0.)
         full_pose[:, :2] = args.map_size_cm / 100.0 / 2.0
 
@@ -227,14 +225,18 @@ def main():
             local_pose[e] = full_pose[e] - \
                 torch.from_numpy(origins[e]).to(device).float()
 
+        for e in range(num_scenes):
+            gl_tree_list[e].reset_gltree()
+
+        
+
     def init_map_and_pose_for_env(e):
         full_map[e].fill_(0.)
-
-        full_map_entropy_points[e].fill_(0.)
-        full_map_goal_points[e].fill_(0.)
-
+        observation_points[e].fill_(0.)
         full_pose[e].fill_(0.)
         full_pose[e, :2] = args.map_size_cm / 100.0 / 2.0
+        gl_tree_list[e].reset_gltree()
+
 
         locs = full_pose[e].cpu().numpy()
         planner_pose_inputs[e, :3] = locs
@@ -256,6 +258,7 @@ def main():
         local_pose[e] = full_pose[e] - \
             torch.from_numpy(origins[e]).to(device).float()
 
+
     def update_intrinsic_rew(e):
         prev_explored_area = full_map[e, 1].sum(1).sum(0)
         full_map[e, :, lmb[e, 0]:lmb[e, 1], lmb[e, 2]:lmb[e, 3]] = \
@@ -266,12 +269,6 @@ def main():
 
     init_map_and_pose()
 
-    # # 3D point tree
-    # x_rb_tree = RedBlackTree(opt.interval_size)
-    # y_rb_tree = RedBlackTree(opt.interval_size)
-    # z_rb_tree = RedBlackTree(opt.interval_size)
-
-
 
     # Global policy observation space
     ngc = 8 + args.num_sem_categories
@@ -281,14 +278,9 @@ def main():
                                           local_w,
                                           local_h), dtype='uint8')
 
-    g_points_entropy_space = gym.spaces.Box(0, 1,
+    g_points_observation_space = gym.spaces.Box(0, 1,
                                          (points_channel_num, 
-                                          map_points_size), dtype='float32')  #color + poitns
-
-    g_points_goal_space = gym.spaces.Box(0, 1,
-                                         (points_channel_num, 
-                                          map_points_size), dtype='float32')  #color + poitns
-
+                                          args.map_point_size), dtype='float32')  
 
     # Global policy action space
     g_action_space = gym.spaces.Box(low=0.0, high=0.99,
@@ -302,7 +294,7 @@ def main():
     sem_map_module.eval()
 
     # Global policy
-    g_policy = RL_Policy(g_map_observation_space.shape, g_points_entropy_space.shape, g_points_goal_space.shape, g_action_space,
+    g_policy = RL_Policy(g_map_observation_space.shape, g_points_observation_space.shape, g_action_space,
                          model_type=1,
                          base_kwargs={'recurrent': args.use_recurrent_global,
                                       'hidden_size': g_hidden_size,
@@ -320,7 +312,7 @@ def main():
 
     # Storage
     g_rollouts = GlobalRolloutStorage(args.num_global_steps,
-                                      num_scenes, g_map_observation_space.shape, g_points_entropy_space.shape, g_points_goal_space.shape,
+                                      num_scenes, g_map_observation_space.shape, g_points_observation_space.shape, 
                                       g_action_space, g_policy.rec_state_size,
                                       es).to(device)
 
@@ -353,13 +345,9 @@ def main():
         [0*1.0/500 for env_idx
             in range(num_scenes)]))
 
-    # print(goal_cat_id)
-    # exit(0)
-    # import pdb
-    # pdb.set_trace()
 
-    _, local_map, _, local_pose, full_map_entropy_points, full_map_goal_points, obs_entropy_points, obs_goal_points = \
-        sem_map_module(obs, poses, local_map, local_pose, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id, gl_tree_list, infos)
+    _, local_map, _, local_pose, observation_points = \
+        sem_map_module(obs, poses, local_map, local_pose, origins, observation_points, goal_cat_id, gl_tree_list, infos, wait_env, args)
 
 
     # Compute Global policy input
@@ -383,8 +371,6 @@ def main():
 
 
 
-
-
     extras = torch.zeros(num_scenes, 3)
     extras[:, 0] = global_orientation[:, 0]
     extras[:, 1] = goal_cat_id
@@ -392,8 +378,7 @@ def main():
 
     g_rollouts.obs_map[0].copy_(global_input)   
 
-    g_rollouts.obs_entropy_points[0].copy_(obs_entropy_points)
-    g_rollouts.obs_goal_points[0].copy_(obs_goal_points)
+    g_rollouts.obs_points[0].copy_(observation_points)
 
     g_rollouts.extras[0].copy_(extras)
 
@@ -401,8 +386,7 @@ def main():
     g_value, g_action, g_action_log_prob, g_rec_states = \
         g_policy.act(
             g_rollouts.obs_map[0],
-            g_rollouts.obs_entropy_points[0],
-            g_rollouts.obs_goal_points[0],
+            g_rollouts.obs_points[0],
 
             g_rollouts.rec_states[0],
             g_rollouts.masks[0],
@@ -440,7 +424,11 @@ def main():
             p_input['sem_map_pred'] = local_map[e, 4:, :, :
                                                 ].argmax(0).cpu().numpy()
 
+    # import time
+    # t_s = time.time()
     obs, _, done, infos = envs.plan_act_and_preprocess(planner_inputs)
+    # print("sem 00", time.time() - t_s)
+
     # print(infos)
     start = time.time()
     g_reward = 0
@@ -494,8 +482,6 @@ def main():
                     episode_agent_success.append(agent_success)
                     episode_softspl.append(softspl)
 
-
-
                 wait_env[e] = 1.
                 update_intrinsic_rew(e)
                 init_map_and_pose_for_env(e)
@@ -522,8 +508,8 @@ def main():
                 [infos[env_idx]['goal_cat_id'] for env_idx
                  in range(num_scenes)]))
 
-        _, local_map, _, local_pose, full_map_entropy_points, full_map_goal_points, obs_entropy_points, obs_goal_points = \
-            sem_map_module(obs, poses, local_map, local_pose, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id, gl_tree_list, infos)
+        _, local_map, _, local_pose, observation_points = \
+            sem_map_module(obs, poses, local_map, local_pose, origins, observation_points, goal_cat_id, gl_tree_list, infos, wait_env, args)
 
 
         locs = local_pose.cpu().numpy()
@@ -612,14 +598,13 @@ def main():
             if step == 0:
                 g_rollouts.obs_map[0].copy_(global_input)
 
-                g_rollouts.obs_entropy_points[0].copy_(obs_entropy_points)
-                g_rollouts.obs_goal_points[0].copy_(obs_goal_points)
+                g_rollouts.obs_points[0].copy_(observation_points)
 
 
                 g_rollouts.extras[0].copy_(extras)
             else:
                 g_rollouts.insert(
-                    global_input, obs_entropy_points, obs_goal_points, g_rec_states,
+                    global_input, observation_points, g_rec_states,
                     g_action, g_action_log_prob, g_value,
                     g_reward, g_masks, extras
                 )
@@ -628,9 +613,7 @@ def main():
             g_value, g_action, g_action_log_prob, g_rec_states = \
                 g_policy.act(
                     g_rollouts.obs_map[g_step + 1],
-                    g_rollouts.obs_entropy_points[g_step + 1],
-                    g_rollouts.obs_goal_points[g_step + 1],
-
+                    g_rollouts.obs_points[g_step + 1],
                     g_rollouts.rec_states[g_step + 1],
                     g_rollouts.masks[g_step + 1],
                     extras=g_rollouts.extras[g_step + 1],
@@ -711,8 +694,12 @@ def main():
                 #                                     :].argmax(0).cpu().numpy()
                 p_input['sem_map_pred'] = local_map_thres.argmax(0).cpu().numpy()
 
-
+        # print("plannar input", planner_inputs[0]['wait'])
+        # import time
+        # t_s = time.time()
         obs, _, done, infos = envs.plan_act_and_preprocess(planner_inputs)
+        # print("sem1", time.time() - t_s)
+
         # ------------------------------------------------------------------
 
         # ------------------------------------------------------------------
@@ -723,8 +710,7 @@ def main():
             if not args.eval:
                 g_next_value = g_policy.get_value(
                     g_rollouts.obs_map[-1],
-                    g_rollouts.obs_entropy_points[-1],
-                    g_rollouts.obs_goal_points[-1],
+                    g_rollouts.obs_points[-1],
                     g_rollouts.rec_states[-1],
                     g_rollouts.masks[-1],
                     extras=g_rollouts.extras[-1]

@@ -8,6 +8,9 @@ from utils.model import get_grid, ChannelPool, Flatten, NNBase
 import envs.utils.depth_utils as du
 from utils.pointnet import PointNetEncoder, PointNetEncoder_STN
 from utils.ply import write_ply_xyz, write_ply_xyz_rgb
+from utils.img_save import save_semantic
+
+import os
 # from pytorch3d.ops import sample_farthest_points
 # 3DV
 
@@ -16,7 +19,7 @@ from utils.ply import write_ply_xyz, write_ply_xyz_rgb
 
 class Goal_Oriented_Semantic_Policy(NNBase):
 
-    def __init__(self, input_map_shape, input_entropy_shape, input_goal_shape, recurrent=False, hidden_size=512,
+    def __init__(self, input_map_shape, input_points_shape, recurrent=False, hidden_size=512,
                  num_sem_categories=6):
         super(Goal_Oriented_Semantic_Policy, self).__init__(
             recurrent, hidden_size, hidden_size)
@@ -30,6 +33,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         # self.point_entropy_Encoder = PointNetEncoder_STN(global_feat=True,  channel = 4)
         # self.point_goal_Encoder = PointNetEncoder_STN(global_feat=True,  channel = 4)
 
+        self.point_Encoder = PointNetEncoder(global_feat=True,  channel = 10)
 
 
         self.main = nn.Sequential(
@@ -50,7 +54,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
             Flatten()
         )
 
-        self.linear1 = nn.Linear(out_size * 32 + 8 * 3, hidden_size)
+        self.linear1 = nn.Linear(out_size * 32 + 1024 + 8 * 3, hidden_size)
         self.linear2 = nn.Linear(hidden_size, 256)
         self.critic_linear = nn.Linear(256, 1)
 
@@ -60,10 +64,10 @@ class Goal_Oriented_Semantic_Policy(NNBase):
 
         self.train()
 
-    def forward(self, inputs_map, input_entropy_points, input_goal_points, rnn_hxs, masks, extras):
+    def forward(self, inputs_map, input_points, rnn_hxs, masks, extras):
         x = self.main(inputs_map)
         # points_entropy_x  = self.point_entropy_Encoder(input_entropy_points)
-        # points_goal_x  = self.point_goal_Encoder(input_goal_points)
+        points_x  = self.point_Encoder(input_points)
 
 
         orientation_emb = self.orientation_emb(extras[:, 0])
@@ -72,7 +76,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
 
 
         # x = torch.cat((x, orientation_emb, goal_emb, time_effe_emb, points_entropy_x, points_goal_x), 1)
-        x = torch.cat((x, orientation_emb, goal_emb, time_effe_emb), 1)
+        x = torch.cat((x, points_x, orientation_emb, goal_emb, time_effe_emb), 1)
 
 
         # print("shape", x.shape)
@@ -89,7 +93,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
 # https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail/blob/master/a2c_ppo_acktr/model.py#L15
 class RL_Policy(nn.Module):
 
-    def __init__(self, obs_map_shape, obs_entropy_points_shape, obs_goal_points_shape, action_space, model_type=0,
+    def __init__(self, obs_map_shape, obs_points_shape, action_space, model_type=0,
                  base_kwargs=None):
 
         super(RL_Policy, self).__init__()
@@ -98,7 +102,7 @@ class RL_Policy(nn.Module):
 
         if model_type == 1:
             self.network = Goal_Oriented_Semantic_Policy(
-                obs_map_shape, obs_entropy_points_shape, obs_goal_points_shape, **base_kwargs)
+                obs_map_shape, obs_points_shape, **base_kwargs)
         else:
             raise NotImplementedError
 
@@ -122,15 +126,15 @@ class RL_Policy(nn.Module):
         """Size of rnn_hx."""
         return self.network.rec_state_size
 
-    def forward(self, inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, extras):
+    def forward(self, inputs_map, inputs_points, rnn_hxs, masks, extras):
         if extras is None:
-            return self.network(inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks)
+            return self.network(inputs_map, inputs_points , rnn_hxs, masks)
         else:
-            return self.network(inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, extras)
+            return self.network(inputs_map, inputs_points, rnn_hxs, masks, extras)
 
-    def act(self, inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, extras=None, deterministic=False):
+    def act(self, inputs_map, inputs_points, rnn_hxs, masks, extras=None, deterministic=False):
 
-        value, actor_features, rnn_hxs = self(inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, extras)
+        value, actor_features, rnn_hxs = self(inputs_map, inputs_points, rnn_hxs, masks, extras)
         dist = self.dist(actor_features)
 
         if deterministic:
@@ -142,13 +146,13 @@ class RL_Policy(nn.Module):
 
         return value, action, action_log_probs, rnn_hxs
 
-    def get_value(self, inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, extras=None):
-        value, _, _ = self(inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, extras)
+    def get_value(self, inputs_map, inputs_points, rnn_hxs, masks, extras=None):
+        value, _, _ = self(inputs_map, inputs_points, rnn_hxs, masks, extras)
         return value
 
-    def evaluate_actions(self, inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, action, extras=None):
+    def evaluate_actions(self, inputs_map, inputs_points, rnn_hxs, masks, action, extras=None):
 
-        value, actor_features, rnn_hxs = self(inputs_map, inputs_entropy_points, inputs_goal_points, rnn_hxs, masks, extras)
+        value, actor_features, rnn_hxs = self(inputs_map, inputs_points, rnn_hxs, masks, extras)
         dist = self.dist(actor_features)
 
         action_log_probs = dist.log_probs(action)
@@ -165,7 +169,7 @@ class Semantic_Mapping(nn.Module):
 
     def __init__(self, args):
         super(Semantic_Mapping, self).__init__()
-        print(args.device)
+        # print(args.device)
         # exit(0)
         self.device = args.device
         self.screen_h = args.frame_height
@@ -204,12 +208,25 @@ class Semantic_Mapping(nn.Module):
             self.screen_h // self.du_scale * self.screen_w // self.du_scale
         ).float().to(self.device)
 
+        # logging information ##############################
+        # self.mapping_infos=[]
+        # for _ in range(args.num_processes):
+        #     m_info = dict()
+        #     m_info["timestep"] = 0
+        #     m_info["seq_num"] = 0
+        #     self.mapping_infos.append(m_info)
 
-        self.save_points_count = 0
 
-    def forward(self, obs, pose_obs, maps_last, poses_last, origins, full_map_entropy_points, full_map_goal_points, goal_cat_id, gl_tree_list, infos):
+
+
+    def forward(self, obs, pose_obs, maps_last, poses_last, origins, observation_points, goal_cat_id, gl_tree_list, infos, wait_env, args):
+
+        # print(wait_env)
+
         bs, c, h, w = obs.size()
         depth = obs[:, 3, :, :]
+
+
         # depth[depth>500] =0
 
         point_cloud_t = du.get_point_cloud_from_z_t(
@@ -329,12 +346,20 @@ class Semantic_Mapping(nn.Module):
         points_pose[:, :2] =  points_pose[:, :2] + torch.from_numpy(origins[:, :2]).to(self.device).float()
 
         points_pose[:,2] =points_pose[:,2] * np.pi /180 
-        points_pose[:,:2] = points_pose[:,:2] * 100
-        robot_location = points_pose.clone()
-        robot_location[:, 2] = self.agent_height
+        # points_pose[:,:2] = points_pose[:,:2] * 100
+
 
         import time
         for e in range(bs):
+            # if str(infos[e]["episode_no"]) == '14':
+            #     print(cut)
+            # if str(infos[e]["episode_no"]) == '10':
+            #     exit(0)
+            # if wait_env[e]:
+            #     continue
+
+            # save_semantic("tmp/points/rank_{0}_eps_{1}_step_{2}.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), sem_obs)
+
             time_s = time.time()
 
             world_view_t = du.transform_pose_t2(
@@ -344,11 +369,9 @@ class Semantic_Mapping(nn.Module):
 
             non_zero_row_1 = torch.abs(point_cloud_t_3d[e,...].reshape(-1,3)).sum(dim=1) > 0
             non_zero_row_2 = torch.abs(world_view_sem_t).sum(dim=1) > 0
+            non_zero_row_3 = torch.argmax(world_view_sem_t, dim=1) != 6
 
-            non_zero_row = non_zero_row_1 & non_zero_row_2
-
-
-
+            non_zero_row = non_zero_row_1 & non_zero_row_2 & non_zero_row_3
             world_view_sem = world_view_sem_t[non_zero_row].cpu().numpy()
 
             world_view_label = np.argmax(world_view_sem, axis=1)
@@ -358,34 +381,47 @@ class Semantic_Mapping(nn.Module):
             world_view_t = world_view_t[non_zero_row].cpu().numpy()
 
 
-
-
             if world_view_t.shape[0] >= 512:
                 indx = np.random.choice(world_view_t.shape[0], 512, replace = False)
             else:
                 indx = np.linspace(0, world_view_t.shape[0]-1, world_view_t.shape[0]).astype(np.int32)
 
-            # print(indx)
-
-            print("world_view_label", world_view_sem[indx].shape)
-
-
-            print(world_view_label.shape)
-            print("world_viwe_label", world_view_label[indx])
-
             gl_tree = gl_tree_list[e]
             gl_tree.init_points_node(world_view_t[indx])
             per_frame_nodes = gl_tree.add_points(world_view_t[indx], world_view_sem[indx], world_view_rgb[indx], world_view_label[indx], infos[e]['timestep'])
+            scene_nodes = gl_tree.all_points()
+            gl_tree.update_neighbor_points(per_frame_nodes)
+
+
+            sample_points_tensor = torch.tensor(gl_tree.sample_points())   # local map
+
+            # sample_points_tensor[:,:3] = sample_points_tensor[:,:3]/100
+            sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2]
+            sample_points_tensor[:,2] = sample_points_tensor[:,2] - 0.88
+            sample_points_tensor[:,:3] = sample_points_tensor[:,:3] * 100 / args.map_resolution
+
+
+            observation_points[e] = sample_points_tensor.transpose(1, 0)
             print(time.time() - time_s)
 
-            gl_tree.node_to_points_ply("/DATA/disk1/epic/jiazhaozhang/navigation_data/MP_data/points/"+str(e)+"_"+str(self.save_points_count)+".ply", per_frame_nodes)
+            #======================= visualize =====================
+            # points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
+            #     args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
+
+            # os.makedirs(points_dir,exist_ok=True)
+
+            # gl_tree.node_to_points_label_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_label.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
+            # gl_tree.node_to_points_prob_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_prob.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
+
+            # sem_obs = obs[e, 4:4+(self.num_sem_categories), :, :].permute(1, 2, 0).cpu().numpy()
+            # save_semantic(points_dir+"rank_{0}_eps_{1}_step_{2}.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), sem_obs)
+
+            
 
 
-
-        self.save_points_count+=1
 
         maps2 = torch.cat((maps_last.unsqueeze(1), translated.unsqueeze(1)), 1)
 
         map_pred, _ = torch.max(maps2, 1)
 
-        return fp_map_pred, map_pred, pose_pred, current_poses, full_map_entropy_points, full_map_entropy_points, full_map_entropy_points, full_map_entropy_points  # full_map_entropy_points will not be used in further training
+        return fp_map_pred, map_pred, pose_pred, current_poses, observation_points  
