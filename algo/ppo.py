@@ -65,9 +65,10 @@ class PPO():
                 values, action_log_probs, dist_entropy, _ = \
                     self.actor_critic.evaluate_actions(
                         sample['obs_map'],
+                        sample['obs_points'], 
 
-                        sample['obs_entropy_points'], 
-                        sample['obs_goal_points'], 
+                        # sample['obs_entropy_points'], 
+                        # sample['obs_goal_points'], 
 
                         sample['rec_states'],
                         sample['masks'], sample['actions'],
