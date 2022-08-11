@@ -76,9 +76,10 @@ class point3D:
         self.point_color = point_color
         self.point_seg_list = []
 
-        # new
+
         self.seg_prob_fused = np.ones(num_sem_categories, dtype=float)
         self.label_thres = 0.5
+
         self.max_prob = 0.0
 
         self.label = -1
@@ -87,12 +88,14 @@ class point3D:
         self.frame_id = 0
 
 
+
     def add_point_seg(self, point_seg):
         
         '''
         point_seg : num_sem_categories * 1, probs in one frame
         '''
         activate_3d = True
+
 
         # record prob
         self.point_seg_list.append(point_seg)
@@ -129,6 +132,44 @@ class point3D:
         # part2: structure
         pass
 
+        # record prob
+        self.point_seg_list.append(point_seg)
+
+        # None-3d version
+        if activate_3d is False :
+            return
+        
+        #--------------- MAX Fusion ---------------#
+        # if self.label == -1: #init
+        #     self.label = np.argmax(point_seg.reshape(-1))
+        #     self.max_prob = np.max(point_seg.reshape(-1))
+        # else: #update
+        #     new_frame_max_prob = np.max(point_seg.reshape(-1))
+        #     if new_frame_max_prob > self.max_prob:
+        #         self.label = np.argmax(point_seg.reshape(-1))
+        #         self.max_prob = new_frame_max_prob
+        #--------------- MAX Fusion ---------------#
+
+        #--------------- Bayesian Fusion ---------------#
+        # update prob
+        self.seg_prob_fused *= point_seg.reshape(-1)
+        self.seg_prob_fused /= np.sum(self.seg_prob_fused) # Normalization
+        # update label
+        if np.max(self.seg_prob_fused) > self.label_thres or self.label == -1:
+            self.label = np.argmax(self.seg_prob_fused)
+        #--------------- Bayesian Fusion ---------------#
+
+        #--------------- No Fusion latest frame---------------#
+        # self.label = np.argmax(point_seg.reshape(-1))
+        #--------------- No Fusion latest frame ---------------#
+
+        #--------------- No Fusion first frame ---------------#
+        # if self.label == -1: #init
+        #     self.label = np.argmax(point_seg.reshape(-1))
+        #     self.max_prob = np.max(point_seg.reshape(-1))
+        #--------------- No Fusion first frame ---------------#
+
+
 
 class GL_tree:
 
@@ -139,6 +180,10 @@ class GL_tree:
         self.z_rb_tree = RedBlackTree(opt.interval_size)
 
         self.scene_node = set()
+
+        self.observation_window = set()
+        self.observation_window_size = opt.observation_window_size
+
 
     def reset_gltree(self):
         del self.x_rb_tree
@@ -167,7 +212,7 @@ class GL_tree:
 
     def add_points(self, points, point_seg, points_color, points_label,frame_index):
         
-        print("frame_index", frame_index)
+
 
         # add to the global (to do)
         activate_3d = True
@@ -201,6 +246,7 @@ class GL_tree:
             #             print(list_intersection[i].point_coor)
             #             print(list_intersection[j].point_coor)
             #             print("================================")
+
 
 
 
@@ -261,7 +307,9 @@ class GL_tree:
             # set_intersection = x_set_union[0] & y_set_union[0] & z_set_union[0]
             # print("len(set_intersection)", len(set_intersection))
 
-        use_crf = False
+
+        use_crf = True
+        
         if use_crf :
             if len(per_image_node_set) > 0 :
                 ############## dense crf on the nodes in each frame ##############
@@ -313,6 +361,7 @@ class GL_tree:
 
                 # inference
                 Q = d.inference(5)
+
                 MAP = np.argmax(Q, axis=0).reshape(-1)
                 
                 # print("Origin Labels:")
@@ -326,12 +375,39 @@ class GL_tree:
                     node.label = MAP[index]
                 ############## dense crf on the nodes in each frame ##############
 
+        self.observation_window = self.observation_window.union(per_image_node_set)
 
         self.scene_node = self.scene_node.union(per_image_node_set)
         return per_image_node_set
 
     def all_points(self):
         return self.scene_node
+
+
+
+    def sample_points(self):
+        if len(self.observation_window) > self.observation_window_size:
+            remove_node_list = random.sample(self.observation_window, len(self.observation_window) - self.observation_window_size)
+            for node in remove_node_list:
+                self.observation_window.remove(node)
+
+        observation_points = np.zeros((4096, 10)) #x,y,z, prob(7)  
+        for i, node in enumerate(self.observation_window):
+            observation_points[i,:3] = node.point_coor
+            observation_points[i,3:10] = node.seg_prob_fused
+
+        return observation_points
+
+
+    # simple update node
+    def update_neighbor_points(self, per_image_node_set):
+        for node in per_image_node_set:
+            temp_fused = np.copy(node.seg_prob_fused)
+            for i in range(len(habitat_labels)):
+                if node.branch_array[i] is not None:
+                    temp_fused += node.branch_array[i].seg_prob_fused
+            temp_fused /= np.sum(temp_fused)
+            node.seg_prob_fused = temp_fused
 
 
 
@@ -387,7 +463,7 @@ class GL_tree:
             ply_file.write("\n")
 
         ply_file.close()
-        print("save result to " + file_name)
+        print("save rgb result to " + file_name)
             
             
     def node_to_points_prob_ply(self, file_name, point_nodes):
@@ -406,6 +482,7 @@ class GL_tree:
         ply_file.write("property uchar blue\n")
 
         ply_file.write("end_header\n")
+
 
 
         points_list = list(point_nodes)
@@ -433,6 +510,7 @@ class GL_tree:
             jet_colormap = cm.get_cmap('jet', 100)
             rgb = jet_colormap(prob)
 
+
             ply_file.write(" "+str(int(rgb[0]*255)) + " " +
                             str(int(rgb[1]*255)) + " " +
                             str(int(rgb[2]*255)))
@@ -441,5 +519,7 @@ class GL_tree:
             ply_file.write("\n")
 
         ply_file.close()
+
         print("save result to " + file_name)
+
             
