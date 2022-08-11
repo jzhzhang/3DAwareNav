@@ -78,6 +78,9 @@ class SemanticPredMaskRCNN():
             # print(classes_matrix)
             # print("--------------------------------------------------")
 
+            import time
+            t_s = time.time()
+
             if class_idx in list(coco_categories_mapping.keys()):
                 # print("class_idx", class_idx)
                 idx = coco_categories_mapping[class_idx]
@@ -112,7 +115,7 @@ class SemanticPredMaskRCNN():
                 # print("--------------------------------")
 
                 semantic_probability += tmp_semantic_probability
-
+            print(time.time() - t_s)
             #print(cut)
                 #---------------------- semantic probs ---------------------- #
 
@@ -122,10 +125,11 @@ class SemanticPredMaskRCNN():
         semantic_input[:,:,-1] = 1 - np.sum(semantic_input[:,:,:-1], axis=-1) # only make bk_prob = 1
 
         #semantic_pred = torch.nn.functional.softmax(seg_predictions[0]['sem_seg'], dim=0).permute(1,2,0).cpu().numpy()
-        semantic_pred = semantic_input
-        entropy_tmp = -semantic_pred*np.log(semantic_pred)
-        sem_entropy = np.sum(entropy_tmp, axis=2)
+        # semantic_pred = semantic_input
+        # entropy_tmp = -semantic_pred*np.log(semantic_pred)
+        # sem_entropy = np.sum(entropy_tmp, axis=2)
 
+        sem_entropy = np.zeros((semantic_input.shape[0], semantic_input.shape[1]))
         #=================prob points================
         goal_cat_output = semantic_input[:, :, cat_goal] + 1e-5
         goal_cat_output[goal_cat_output<0] = 0

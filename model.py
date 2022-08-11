@@ -374,6 +374,10 @@ class Semantic_Mapping(nn.Module):
             non_zero_row = non_zero_row_1 & non_zero_row_2 & non_zero_row_3
             world_view_sem = world_view_sem_t[non_zero_row].cpu().numpy()
 
+            # print("world_view_sem", world_view_sem.shape)
+            if world_view_sem.shape[0] <50:
+                continue
+
             world_view_label = np.argmax(world_view_sem, axis=1)
 
 
