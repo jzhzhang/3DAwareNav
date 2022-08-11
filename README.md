@@ -48,51 +48,19 @@ pip install -r requirements.txt
 ```
 
 Currentlt, we only consider following sequences:
-```
-scenes["train"] = [
-    'Allensville',
-    'Beechwood',
-    'Benevolence',
-    'Coffeen',
-    'Cosmos',
-    'Forkland',
-    'Hanson',
-    'Hiteman',
-    'Klickitat',
-    'Lakeville',
-    'Leonardo',
-    'Lindenwood',
-    'Marstons',
-    'Merom',
-    'Mifflinburg',
-    'Newfields',
-    'Onaga',
-    'Pinesdale',
-    'Pomaria',
-    'Ranchester',
-    'Shelbyville',
-    'Stockman',
-    'Tolstoy',
-    'Wainscott',
-    'Woodbine',
-]
-
-scenes["val"] = [
-    'Collierville',
-    'Corozal',
-    'Darden',
-    'Markleeville',
-    'Wiconisco',
-]
-
-```
 
 
 
 ### Training:
 ```
-sh run_script.sh
+sh run_script_server.sh
 ```
+
+### Debugging Testing:
+```
+sh test_script_server.sh
+```
+
 
 
 

@@ -228,8 +228,8 @@ def main():
         for e in range(num_scenes):
             gl_tree_list[e].reset_gltree()
 
-        
 
+       
     def init_map_and_pose_for_env(e):
         full_map[e].fill_(0.)
         observation_points[e].fill_(0.)
@@ -346,8 +346,10 @@ def main():
             in range(num_scenes)]))
 
 
+
     _, local_map, _, local_pose, observation_points = \
         sem_map_module(obs, poses, local_map, local_pose, origins, observation_points, goal_cat_id, gl_tree_list, infos, wait_env, args)
+
 
 
     # Compute Global policy input
@@ -508,8 +510,10 @@ def main():
                 [infos[env_idx]['goal_cat_id'] for env_idx
                  in range(num_scenes)]))
 
+
         _, local_map, _, local_pose, observation_points = \
             sem_map_module(obs, poses, local_map, local_pose, origins, observation_points, goal_cat_id, gl_tree_list, infos, wait_env, args)
+
 
 
         locs = local_pose.cpu().numpy()
@@ -695,10 +699,12 @@ def main():
                 p_input['sem_map_pred'] = local_map_thres.argmax(0).cpu().numpy()
 
         # print("plannar input", planner_inputs[0]['wait'])
+
         # import time
         # t_s = time.time()
         obs, _, done, infos = envs.plan_act_and_preprocess(planner_inputs)
         # print("sem1", time.time() - t_s)
+
 
         # ------------------------------------------------------------------
 
