@@ -402,7 +402,7 @@ class Semantic_Mapping(nn.Module):
 
 
             observation_points[e] = sample_points_tensor.transpose(1, 0)
-            print(time.time() - time_s)
+            # print(time.time() - time_s)
 
             #======================= visualize =====================
             # points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
