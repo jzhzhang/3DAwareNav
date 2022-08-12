@@ -141,6 +141,9 @@ saved/
 tmp/
 tmp
 pretrained_models/
+pretrained_models
+model/
+model
 data/
 data
 weight

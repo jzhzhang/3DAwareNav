@@ -15,19 +15,17 @@ import os
 # 3DV
 
 
+
+
 class Goal_Oriented_Semantic_Policy(NNBase):
 
-    def __init__(self, input_map_shape, input_points_shape, recurrent = False, hidden_size = 512,
-                 num_sem_categories = 6):
+    def __init__(self, input_map_shape, input_points_shape, recurrent=False, hidden_size=512,
+                 num_sem_categories=6):
         super(Goal_Oriented_Semantic_Policy, self).__init__(
             recurrent, hidden_size, hidden_size)
 
-        self.in_size_x = input_map_shape[1]
-        self.in_size_y = input_map_shape[2]
-        self.mid_size_x = int(self.in_size_x / 4.) 
-        self.mid_size_y = int(self.in_size_y / 4.)
-        self.out_size_x = int(self.in_size_x / 16.) 
-        self.out_size_y = int(self.in_size_y / 16.)
+        out_size = int(input_map_shape[1] / 16.) * int(input_map_shape[2] / 16.)
+
 
         # self.point_entropy_Encoder = PointNetEncoder(global_feat=True,  channel = 4)
         # self.point_goal_Encoder = PointNetEncoder(global_feat=True,  channel = 4)
@@ -35,95 +33,61 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         # self.point_entropy_Encoder = PointNetEncoder_STN(global_feat=True,  channel = 4)
         # self.point_goal_Encoder = PointNetEncoder_STN(global_feat=True,  channel = 4)
 
-        self.map_net = nn.Sequential(
+        self.point_Encoder = PointNetEncoder(global_feat=True,  channel = 10)
+
+
+        self.main = nn.Sequential(
             nn.MaxPool2d(2),
             nn.Conv2d(num_sem_categories + 8, 32, 3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, stride=1, padding=1),
             nn.ReLU(),
+            nn.MaxPool2d(2),
             nn.Conv2d(64, 128, 3, stride=1, padding=1),
             nn.ReLU(),
+            nn.MaxPool2d(2),
             nn.Conv2d(128, 64, 3, stride=1, padding=1),
             nn.ReLU(),
             nn.Conv2d(64, 32, 3, stride=1, padding=1),
-            nn.ReLU()
+            nn.ReLU(),
+            Flatten()
         )
 
-        self.point_Encoder = PointNetEncoder(global_feat=True,  channel=10)
-        self.points_compress = nn.Linear(1024, 32)
+        self.linear1 = nn.Linear(out_size * 32 + 1024 + 8 * 3, hidden_size)
+        self.linear2 = nn.Linear(hidden_size, 256)
+        self.critic_linear = nn.Linear(256, 1)
 
         self.orientation_emb = nn.Embedding(72, 8)
         self.goal_emb = nn.Embedding(num_sem_categories, 8)
         self.time_emb = nn.Embedding(500, 8)
 
-        self.input_chan = 32 + 32 + 3 * 8  # 92
-        self.policy_net = nn.Sequential(
-            nn.MaxPool2d(2),
-            nn.Conv2d(self.input_chan, 128, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(128, 256, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(256, 512, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(512, 256, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(256, 128, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(128, 64, 3, stride=1, padding=1),
-            nn.ReLU(),
-            Flatten()
-        )
-
-        self.rnn_mlp1 = nn.Sequential(
-            nn.Linear(self.out_size_x * self.out_size_y * 64, hidden_size),
-            nn.ReLU()
-        )
-        self.rnn_mlp2 = nn.Sequential(
-            nn.Linear(hidden_size, 256),
-            nn.ReLU()
-        )
-        self.critic_mlp = nn.Linear(256, 1)
-
         self.train()
 
     def forward(self, inputs_map, input_points, rnn_hxs, masks, extras):
-        
-        # 2D map encoder (base)
-        x = self.map_net(inputs_map)
-       
-        # 3D points information
-        #   output: 1 * 32
+        x = self.main(inputs_map)
         # points_entropy_x  = self.point_entropy_Encoder(input_entropy_points)
         points_x  = self.point_Encoder(input_points)
-        points_x  = self.points_compress(points_x)
 
-        # extra information
-        #   output: 1 * (8 * 3 = 24)
-        # print("extras shape: ",extras.shape)
+
         orientation_emb = self.orientation_emb(extras[:, 0])
         goal_emb = self.goal_emb(extras[:, 1])
         time_effe_emb = self.time_emb(extras[:, 2])
-        extra_tot = torch.cat((points_x, orientation_emb, goal_emb, time_effe_emb), 1)
 
-        # concatenation
-        extra_tot = extra_tot.reshape([points_x.shape[0], 32 + 3 * 8, 1, 1 ])
-        extra_tot = extra_tot.expand([points_x.shape[0], 32 + 3 * 8, self.mid_size_x, self.mid_size_y ])
 
-        x = torch.cat((x, extra_tot), 1)
+        # x = torch.cat((x, orientation_emb, goal_emb, time_effe_emb, points_entropy_x, points_goal_x), 1)
+        x = torch.cat((x, points_x, orientation_emb, goal_emb, time_effe_emb), 1)
 
-        # policy net
-        x = self.policy_net(x)
-        #print(x)
-        #print("learning========================================================")
-        
-        x = self.rnn_mlp1(x)
+
+        # print("shape", x.shape)
+        # print("learning========================================================")
+        x = nn.ReLU()(self.linear1(x))
         if self.is_recurrent:
             x, rnn_hxs = self._forward_gru(x, rnn_hxs, masks)
-        x = self.rnn_mlp2(x)
 
-        return self.critic_mlp(x).squeeze(-1), x, rnn_hxs
+        x = nn.ReLU()(self.linear2(x))
+
+        return self.critic_linear(x).squeeze(-1), x, rnn_hxs
 
 
 # https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail/blob/master/a2c_ppo_acktr/model.py#L15
@@ -445,14 +409,12 @@ class Semantic_Mapping(nn.Module):
             # print(time.time() - time_s)
 
             #======================= visualize =====================
-            '''
             points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
                 args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
 
             os.makedirs(points_dir,exist_ok=True)
 
             gl_tree.node_to_points_label_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_label.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
-            '''
             # gl_tree.node_to_points_prob_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_prob.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
 
             # sem_obs = obs[e, 4:4+(self.num_sem_categories), :, :].permute(1, 2, 0).cpu().numpy()
