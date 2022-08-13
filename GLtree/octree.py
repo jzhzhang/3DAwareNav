@@ -148,7 +148,6 @@ class GL_tree:
         self.observation_window = set()
         self.observation_window_size = opt.observation_window_size
 
-
     def reset_gltree(self):
         del self.x_rb_tree
         del self.y_rb_tree
@@ -327,14 +326,11 @@ class GL_tree:
                 ############## dense crf on the nodes in each frame ##############
 
 
-        self.scene_node = self.scene_node.union(per_image_node_set)
-        return per_image_node_set
-
-
         self.observation_window = self.observation_window.union(per_image_node_set)
-
         self.scene_node = self.scene_node.union(per_image_node_set)
         return per_image_node_set
+
+
 
     def all_points(self):
         return self.scene_node
@@ -366,6 +362,26 @@ class GL_tree:
             node.seg_prob_fused = temp_fused
 
 
+    def find_object_goal_points(self, node_set, goal_obj_id, threshold):
+        goal_list = []
+        for node in node_set:
+            if node.label != goal_obj_id or node.seg_prob_fused[goal_obj_id] < threshold:
+                continue
+            count = 0
+            for i in range(len(habitat_labels)):
+                if node.branch_array[i] is not None and node.branch_array[i].label == goal_obj_id:
+                    count += 1 
+            if count >2:
+                goal_list.append(node)
+
+        if len(goal_list) == 0:
+            return None 
+
+        observation_points = np.zeros((len(goal_list), 3)) # x,y,z  
+        for i, node in enumerate(goal_list):
+            observation_points[i] = node.point_coor
+
+        return observation_points
 
 
     def node_to_points_label_ply(self, file_name, point_nodes):

@@ -261,20 +261,11 @@ class ObjectGoal_Env(habitat.RLEnv):
         return (0., 1.0)
 
     def get_reward(self, observations):
-        # curr_loc = self.sim_continuous_to_sim_map(self.get_sim_location(), )
-        # self.curr_distance = self.gt_planner.fmm_dist[curr_loc[0],
-        #                                               curr_loc[1]] / 20.0
 
-        # curr_distance = self._env.geodesic_distance(self.get_sim_location(), episode.goals[0].position)
+        reward = -0.0001   # slack reward = -10e-4
+        if self._env.get_metrics()["success"]:
+            reward += 2.5 # success reward 
 
-        self.curr_distance = self._env.get_metrics()["distance_to_goal"]
-
-        reward = (self.prev_distance - self.curr_distance) * \
-            self.args.reward_coeff
-        
-        # print("reward", reward)
-
-        self.prev_distance = self.curr_distance
         return reward
 
     def get_metrics(self):

@@ -6,7 +6,7 @@ import cv2
 from utils.distributions import Categorical, DiagGaussian
 from utils.model import get_grid, ChannelPool, Flatten, NNBase
 import envs.utils.depth_utils as du
-from utils.pointnet import PointNetEncoder, PointNetEncoder_STN
+from utils.pointnet import PointNetEncoder
 from utils.ply import write_ply_xyz, write_ply_xyz_rgb
 from utils.img_save import save_semantic
 
@@ -399,22 +399,27 @@ class Semantic_Mapping(nn.Module):
 
             sample_points_tensor = torch.tensor(gl_tree.sample_points())   # local map
 
-            # sample_points_tensor[:,:3] = sample_points_tensor[:,:3]/100
             sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
             sample_points_tensor[:,2] = sample_points_tensor[:,2] - 0.88 * 100
             sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution
 
 
+
             observation_points[e] = sample_points_tensor.transpose(1, 0)
+
+
+
+
+
             # print(time.time() - time_s)
 
             #======================= visualize =====================
-            points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
-                args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
+            # points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
+            #     args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
 
-            os.makedirs(points_dir,exist_ok=True)
+            # os.makedirs(points_dir,exist_ok=True)
 
-            gl_tree.node_to_points_label_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_label.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
+            # gl_tree.node_to_points_label_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_label.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
             # gl_tree.node_to_points_prob_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_prob.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
 
             # sem_obs = obs[e, 4:4+(self.num_sem_categories), :, :].permute(1, 2, 0).cpu().numpy()
