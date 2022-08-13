@@ -78,7 +78,9 @@ class point3D:
 
 
         self.seg_prob_fused = np.ones(num_sem_categories, dtype=float)
-        self.label_thres = 0.5
+        self.label_thres = 0.8
+
+        self.kl_div = 0.0
 
         self.max_prob = 0.0
 
@@ -257,79 +259,8 @@ class GL_tree:
             # set_intersection = x_set_union[0] & y_set_union[0] & z_set_union[0]
             # print("len(set_intersection)", len(set_intersection))
 
-
-        use_crf = True
-        if use_crf :
-            if len(per_image_node_set) > 0 :
-                ############## dense crf on the nodes in each frame ##############
-                d = dcrf.DenseCRF(len(per_image_node_set), len(habitat_labels))
-                
-                U = np.zeros((len(habitat_labels),len(per_image_node_set)), dtype=np.float32) # 7*N
-                xyz_pc = np.zeros((len(per_image_node_set),3), dtype=np.float32) # N*3
-                feat_pc = np.zeros((len(per_image_node_set),3), dtype=np.float32) # N*3
-
-                origin_label = np.ones(len(per_image_node_set), dtype=int)
-
-                # unary potential
-                for index, node in enumerate(per_image_node_set):
-                    U[ : , index] = node.seg_prob_fused
-                    xyz_pc[index, : ] = node.point_coor # same shape?
-                    feat_pc[index, : ] = node.point_color # same shape?
-
-                    origin_label[index] = node.label
-                
-                #print(U)
-                U = -np.log(U)
-                #print(U)
-                d.setUnaryEnergy(U)
-
-                # pairwise potensial
-                # gaussian
-                p_gaussian = np.zeros((xyz_pc.shape[1], xyz_pc.shape[0]))
-                xyz_pc_min, xyz_pc_max = np.min(xyz_pc, axis=0), np.max(xyz_pc, axis=0)
-                pp = (xyz_pc - xyz_pc_min) / (xyz_pc_max - xyz_pc_min)
-                pp = pp.transpose()
-                for i in range(p_gaussian.shape[0]):
-                    p_gaussian[i, :] == pp[i,:]
-                d.addPairwiseEnergy(p_gaussian.astype(np.float32),3)
-
-                # bilateral
-                xyz_pc_min, xyz_pc_max = np.min(xyz_pc, axis=0), np.max(xyz_pc, axis=0)
-                p_bilateral = np.zeros((xyz_pc.shape[1]+feat_pc.shape[1], feat_pc.shape[0]))
-
-                p_xyz = (xyz_pc - xyz_pc_min) / (xyz_pc_max-xyz_pc_min)
-                p_xyz = p_xyz.transpose() # (3,N)
-
-                p_feat = feat_pc
-                p_feat = p_feat.transpose() #(C,N)
-
-                p_bilateral[:p_xyz.shape[0]] = p_xyz
-                p_bilateral[p_xyz.shape[0]:] = p_feat
-
-                d.addPairwiseEnergy(p_bilateral.astype(np.float32),1)
-
-                # inference
-                Q = d.inference(5)
-
-                probs_matrix = np.array(Q)
-                #print("probs matrix shape:", probs_matrix.shape) # 7*N
-                #print(probs_matrix[:,1])
-
-                MAP = np.argmax(Q, axis=0).reshape(-1)
-                #print("map shape:", MAP.shape)
-
-                # update label
-                for index, node in enumerate(per_image_node_set):
-                    node.seg_prob_fused = probs_matrix[:,index]
-                    if np.max(node.seg_prob_fused) > node.label_thres:
-                        node.label = np.argmax(node.seg_prob_fused)
-                    #node.label = MAP[index]
-                ############## dense crf on the nodes in each frame ##############
-
-
-        self.scene_node = self.scene_node.union(per_image_node_set)
-        return per_image_node_set
-
+        # self.scene_node = self.scene_node.union(per_image_node_set)
+        # return per_image_node_set
 
         self.observation_window = self.observation_window.union(per_image_node_set)
 
@@ -340,6 +271,74 @@ class GL_tree:
         return self.scene_node
 
 
+    def crf_points(self, per_image_node_set):
+
+        if len(per_image_node_set) > 0 :
+
+            d = dcrf.DenseCRF(len(per_image_node_set), len(habitat_labels))
+            
+            U = np.zeros((len(habitat_labels),len(per_image_node_set)), dtype=np.float32) # 7*N
+            xyz_pc = np.zeros((len(per_image_node_set),3), dtype=np.float32) # N*3
+            feat_pc = np.zeros((len(per_image_node_set),3), dtype=np.float32) # N*3
+
+            origin_label = np.ones(len(per_image_node_set), dtype=int)
+
+            # unary potential
+            for index, node in enumerate(per_image_node_set):
+                U[ : , index] = node.seg_prob_fused
+                xyz_pc[index, : ] = node.point_coor # same shape?
+                feat_pc[index, : ] = node.point_color # same shape?
+
+                origin_label[index] = node.label
+            
+            #print(U)
+            U = -np.log(U)
+            #print(U)
+            d.setUnaryEnergy(U)
+
+            # pairwise potensial
+            # gaussian
+            p_gaussian = np.zeros((xyz_pc.shape[1], xyz_pc.shape[0]))
+            xyz_pc_min, xyz_pc_max = np.min(xyz_pc, axis=0), np.max(xyz_pc, axis=0)
+            pp = (xyz_pc - xyz_pc_min) / (xyz_pc_max - xyz_pc_min)
+            pp = pp.transpose()
+            for i in range(p_gaussian.shape[0]):
+                p_gaussian[i, :] == pp[i,:]
+            d.addPairwiseEnergy(p_gaussian.astype(np.float32),3)
+
+            # bilateral
+            xyz_pc_min, xyz_pc_max = np.min(xyz_pc, axis=0), np.max(xyz_pc, axis=0)
+            p_bilateral = np.zeros((xyz_pc.shape[1]+feat_pc.shape[1], feat_pc.shape[0]))
+
+            p_xyz = (xyz_pc - xyz_pc_min) / (xyz_pc_max-xyz_pc_min)
+            p_xyz = p_xyz.transpose() # (3,N)
+
+            p_feat = feat_pc
+            p_feat = p_feat.transpose() #(C,N)
+
+            p_bilateral[:p_xyz.shape[0]] = p_xyz
+            p_bilateral[p_xyz.shape[0]:] = p_feat
+
+            # d.addPairwiseEnergy(p_bilateral.astype(np.float32),1)
+
+            # inference
+            Q = d.inference(5)
+
+            probs_matrix = np.array(Q)
+            # print("probs matrix shape:", probs_matrix.shape) # 7*N
+            # print(probs_matrix[:,1])
+
+            # MAP = np.argmax(Q, axis=0).reshape(-1)
+            # print("map shape:", MAP.shape)
+
+            # update label
+            for index, node in enumerate(per_image_node_set):
+                node.seg_prob_fused = probs_matrix[:,index]
+                if np.max(node.seg_prob_fused) > node.label_thres:
+                    node.label = np.argmax(node.seg_prob_fused)
+                #node.label = MAP[index]
+
+        return per_image_node_set
 
     def sample_points(self):
         if len(self.observation_window) > self.observation_window_size:
@@ -359,11 +358,25 @@ class GL_tree:
     def update_neighbor_points(self, per_image_node_set):
         for node in per_image_node_set:
             temp_fused = np.copy(node.seg_prob_fused)
-            for i in range(len(habitat_labels)):
+
+            temp_kl_div_max = node.kl_div
+            center_point_kl_prob = node.seg_prob_fused * np.log(node.seg_prob_fused)
+
+            for i in range(8):
                 if node.branch_array[i] is not None:
                     temp_fused += node.branch_array[i].seg_prob_fused
+                    #---- KL Divergence MAX ---#
+                    branch_point_kl_prob = node.seg_prob_fused * np.log(node.branch_array[i].seg_prob_fused)
+                    branch_kl_dic = np.sum(center_point_kl_prob - branch_point_kl_prob)
+                    if branch_kl_dic > temp_kl_div_max:
+                        temp_kl_div_max = branch_kl_dic
+                    #---- KL Divergence MAX ---#
+
             temp_fused /= np.sum(temp_fused)
             node.seg_prob_fused = temp_fused
+            node.label = np.argmax(node.seg_prob_fused)
+
+            node.kl_div = temp_kl_div_max
 
 
 
@@ -463,6 +476,63 @@ class GL_tree:
 
             # colormap
             prob = points_list[i].max_prob # 0~1
+            jet_colormap = cm.get_cmap('jet', 100)
+            rgb = jet_colormap(prob)
+
+
+            ply_file.write(" "+str(int(rgb[0]*255)) + " " +
+                            str(int(rgb[1]*255)) + " " +
+                            str(int(rgb[2]*255)))
+
+
+            ply_file.write("\n")
+
+        ply_file.close()
+
+        print("save result to " + file_name)
+
+
+    def node_to_points_kl_ply(self, file_name, point_nodes):
+    
+        # point_count=point_cloud.shape[0]
+        ply_file = open(file_name, 'w')
+        ply_file.write("ply\n")
+        ply_file.write("format ascii 1.0\n")
+        ply_file.write("element vertex " + str(len(point_nodes)) + "\n")
+        ply_file.write("property float x\n")
+        ply_file.write("property float y\n")
+        ply_file.write("property float z\n")
+
+        ply_file.write("property uchar red\n")
+        ply_file.write("property uchar green\n")
+        ply_file.write("property uchar blue\n")
+
+        ply_file.write("end_header\n")
+
+
+
+        points_list = list(point_nodes)
+
+        for i in range(len(point_nodes)):
+
+            points_coor = points_list[i].point_coor
+
+            ply_file.write(str(points_coor[ 0]) + " " +
+                        str(points_coor[1]) + " " +
+                        str(points_coor[2]))
+
+            label_id = points_list[i].label+5
+            label_id = label_id if label_id<11 else 1
+
+            if label_id<0:
+                print("==================== label id < 0 !!!!")
+
+
+            # rgb = color_palette_array[label_id, :]
+            #print(rgb)
+
+            # colormap
+            prob = points_list[i].kl_div # 0~1
             jet_colormap = cm.get_cmap('jet', 100)
             rgb = jet_colormap(prob)
 
