@@ -450,23 +450,12 @@ class Semantic_Mapping(nn.Module):
             # print(time.time() - time_s)
 
             #======================= visualize =====================
-<<<<<<< HEAD
             # points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
             #     args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
-=======
-            '''
-            points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
-                args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
->>>>>>> 2b3d38e926f0b364113d309de7355e29767e1aff
 
             # os.makedirs(points_dir,exist_ok=True)
 
-<<<<<<< HEAD
             # gl_tree.node_to_points_label_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_label.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
-=======
-            gl_tree.node_to_points_label_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_label.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
-            '''
->>>>>>> 2b3d38e926f0b364113d309de7355e29767e1aff
             # gl_tree.node_to_points_prob_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_prob.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
 
             # sem_obs = obs[e, 4:4+(self.num_sem_categories), :, :].permute(1, 2, 0).cpu().numpy()

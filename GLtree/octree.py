@@ -318,16 +318,9 @@ class GL_tree:
             p_bilateral[:p_xyz.shape[0]] = p_xyz
             p_bilateral[p_xyz.shape[0]:] = p_feat
 
-        self.observation_window = self.observation_window.union(per_image_node_set)
-        self.scene_node = self.scene_node.union(per_image_node_set)
-        return per_image_node_set
 
             # inference
             Q = d.inference(5)
-
-
-    def all_points(self):
-        return self.scene_node
 
             # update label
             for index, node in enumerate(per_image_node_set):
