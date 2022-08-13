@@ -1,4 +1,4 @@
-import tensorflow
+#import tensorflow
 from collections import deque, defaultdict
 import os
 import logging

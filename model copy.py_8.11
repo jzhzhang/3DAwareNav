@@ -6,10 +6,13 @@ import cv2
 from utils.distributions import Categorical, DiagGaussian
 from utils.model import get_grid, ChannelPool, Flatten, NNBase
 import envs.utils.depth_utils as du
-from utils.pointnet import PointNetEncoder
+from utils.pointnet import PointNetEncoder, PointNetEncoder_STN
 from utils.ply import write_ply_xyz, write_ply_xyz_rgb
-# from pytorch3d.ops import sample_farthest_points
+from utils.img_save import save_semantic
 
+import os
+# from pytorch3d.ops import sample_farthest_points
+# 3DV
 
 
 
@@ -17,14 +20,21 @@ from utils.ply import write_ply_xyz, write_ply_xyz_rgb
 class Goal_Oriented_Semantic_Policy(NNBase):
 
     def __init__(self, input_map_shape, input_points_shape, recurrent=False, hidden_size=512,
-                 num_sem_categories=16):
+                 num_sem_categories=6):
         super(Goal_Oriented_Semantic_Policy, self).__init__(
             recurrent, hidden_size, hidden_size)
 
         out_size = int(input_map_shape[1] / 16.) * int(input_map_shape[2] / 16.)
 
 
-        self.pointEncoder = PointNetEncoder(global_feat=True, feature_transform=True, channel=6)
+        # self.point_entropy_Encoder = PointNetEncoder(global_feat=True,  channel = 4)
+        # self.point_goal_Encoder = PointNetEncoder(global_feat=True,  channel = 4)
+
+        # self.point_entropy_Encoder = PointNetEncoder_STN(global_feat=True,  channel = 4)
+        # self.point_goal_Encoder = PointNetEncoder_STN(global_feat=True,  channel = 4)
+
+        self.point_Encoder = PointNetEncoder(global_feat=True,  channel = 10)
+
 
         self.main = nn.Sequential(
             nn.MaxPool2d(2),
@@ -44,26 +54,32 @@ class Goal_Oriented_Semantic_Policy(NNBase):
             Flatten()
         )
 
-        self.linear1 = nn.Linear(out_size * 32 + 8 * 2 + 1024, hidden_size)
+        self.linear1 = nn.Linear(out_size * 32 + 1024 + 8 * 3, hidden_size)
         self.linear2 = nn.Linear(hidden_size, 256)
         self.critic_linear = nn.Linear(256, 1)
+
         self.orientation_emb = nn.Embedding(72, 8)
         self.goal_emb = nn.Embedding(num_sem_categories, 8)
+        self.time_emb = nn.Embedding(500, 8)
+
         self.train()
 
     def forward(self, inputs_map, input_points, rnn_hxs, masks, extras):
         x = self.main(inputs_map)
-        points_x, _ , _  = self.pointEncoder(input_points)
+        # points_entropy_x  = self.point_entropy_Encoder(input_entropy_points)
+        points_x  = self.point_Encoder(input_points)
+
+
         orientation_emb = self.orientation_emb(extras[:, 0])
         goal_emb = self.goal_emb(extras[:, 1])
-
-        # print(x.shape)
-        # print(orientation_emb.shape)
-        # print(goal_emb.shape)
-        # print(points_x.shape)
+        time_effe_emb = self.time_emb(extras[:, 2])
 
 
-        x = torch.cat((x, orientation_emb, goal_emb, points_x), 1)
+        # x = torch.cat((x, orientation_emb, goal_emb, time_effe_emb, points_entropy_x, points_goal_x), 1)
+        x = torch.cat((x, points_x, orientation_emb, goal_emb, time_effe_emb), 1)
+
+
+        # print("shape", x.shape)
         # print("learning========================================================")
         x = nn.ReLU()(self.linear1(x))
         if self.is_recurrent:
@@ -112,7 +128,7 @@ class RL_Policy(nn.Module):
 
     def forward(self, inputs_map, inputs_points, rnn_hxs, masks, extras):
         if extras is None:
-            return self.network(inputs_map, inputs_points, rnn_hxs, masks)
+            return self.network(inputs_map, inputs_points , rnn_hxs, masks)
         else:
             return self.network(inputs_map, inputs_points, rnn_hxs, masks, extras)
 
@@ -153,7 +169,8 @@ class Semantic_Mapping(nn.Module):
 
     def __init__(self, args):
         super(Semantic_Mapping, self).__init__()
-
+        # print(args.device)
+        # exit(0)
         self.device = args.device
         self.screen_h = args.frame_height
         self.screen_w = args.frame_width
@@ -191,13 +208,26 @@ class Semantic_Mapping(nn.Module):
             self.screen_h // self.du_scale * self.screen_w // self.du_scale
         ).float().to(self.device)
 
+        # logging information ##############################
+        # self.mapping_infos=[]
+        # for _ in range(args.num_processes):
+        #     m_info = dict()
+        #     m_info["timestep"] = 0
+        #     m_info["seq_num"] = 0
+        #     self.mapping_infos.append(m_info)
 
-        self.save_points_count = 0
 
-    def forward(self, obs, pose_obs, maps_last, poses_last, origins, full_map_points):
+
+
+    def forward(self, obs, pose_obs, maps_last, poses_last, origins, observation_points, goal_cat_id, gl_tree_list, infos, wait_env, args):
+
+        # print(wait_env)
+
         bs, c, h, w = obs.size()
         depth = obs[:, 3, :, :]
-        depth[depth>500] =0
+
+
+        # depth[depth>500] =0
 
         point_cloud_t = du.get_point_cloud_from_z_t(
             depth, self.camera_matrix, self.device, scale=self.du_scale)
@@ -228,16 +258,11 @@ class Semantic_Mapping(nn.Module):
         XYZ_cm_std[..., 2] = (XYZ_cm_std[..., 2] -
                               (max_h + min_h) // 2.) / (max_h - min_h) * 2.
 
-
-
-
-        # write_ply_xyz(XYZ_cm_std.cpu().numpy()[0,...].reshape(-1,3),"/home/jiazhao/code/navigation/results/XYZ_cm_std"+str(self.save_points_count)+".ply")
-        # write_ply_xyz(XYZ_cm_std.cpu().numpy()[0,...].reshape(-1,3),"/home/jiazhao/code/navigation/results/singview.ply")
-
+        # print("sem", obs[:, 4:4+(self.num_sem_categories), :, :])
 
         self.feat[:, 1:, :] = nn.AvgPool2d(self.du_scale)(
-            obs[:, 4:, :, :]
-        ).view(bs, c - 4, h // self.du_scale * w // self.du_scale)
+            obs[:, 4:4+(self.num_sem_categories), :, :]
+        ).view(bs, self.num_sem_categories, h // self.du_scale * w // self.du_scale)
 
         XYZ_cm_std = XYZ_cm_std.permute(0, 3, 1, 2)
         XYZ_cm_std = XYZ_cm_std.view(XYZ_cm_std.shape[0],
@@ -265,10 +290,10 @@ class Semantic_Mapping(nn.Module):
 
         pose_pred = poses_last
 
-        agent_view = torch.zeros(bs, c,
+        agent_view = torch.zeros(bs, c - 2,     
                                  self.map_size_cm // self.resolution,
                                  self.map_size_cm // self.resolution
-                                 ).to(self.device)
+                                 ).to(self.device)  # -2 including, entropy, goal
 
         x1 = self.map_size_cm // (self.resolution * 2) - self.vision_range // 2
         x2 = x1 + self.vision_range
@@ -317,82 +342,90 @@ class Semantic_Mapping(nn.Module):
         rotated = F.grid_sample(agent_view, rot_mat, align_corners=True)
         translated = F.grid_sample(rotated, trans_mat, align_corners=True)
 
-        # points_current_poses = current_poses.clone()
-        # points_current_poses[:,2] =points_current_poses[:,2] * np.pi /180 
-        # points_current_poses[:,:2] = points_current_poses[:,:2] * 100
-        # print("points_current_poses: ", points_current_poses)
-
-        # points_pose = current_poses.clone()+torch.from_numpy(origins).to(self.device)
-        # print("orgins: ", origins)
-        # print("current_poses: ", current_poses)
-
         points_pose = current_poses.clone()
+        points_pose[:, :2] =  points_pose[:, :2] + torch.from_numpy(origins[:, :2]).to(self.device).float()
 
         points_pose[:,2] =points_pose[:,2] * np.pi /180 
         points_pose[:,:2] = points_pose[:,:2] * 100
-        robot_location = points_pose.clone()
-        robot_location[:, 2] = self.agent_height
-        # print(robot_location)
-        # print("points_pose: ", points_pose)
 
-        # print("agent_view_t_3d",agent_view_t_3d.shape)
-        # print("points_pose",points_pose.shape)
 
+        import time
         for e in range(bs):
-            # world_view_t = du.transform_pose_t2(
-            #     agent_view_t_3d, points_current_poses[e,...].cpu().numpy(), self.device).reshape(-1,3)
+            # if str(infos[e]["episode_no"]) == '14':
+            #     print(cut)
+            # if str(infos[e]["episode_no"]) == '10':
+            #     exit(0)
+            # if wait_env[e]:
+            #     continue
+
+            # save_semantic("tmp/points/rank_{0}_eps_{1}_step_{2}.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), sem_obs)
+
+            time_s = time.time()
 
             world_view_t = du.transform_pose_t2(
                 agent_view_t_3d[e,...], points_pose[e,...].cpu().numpy(), self.device).reshape(-1,3)
-            non_zero_row = torch.abs(point_cloud_t_3d[e,...].reshape(-1,3)).sum(dim=1) > 0
-            world_view_rgb = obs[e, :3, :, :].permute(1,2,0).reshape(-1,3)
-            world_view_rgb = world_view_rgb[non_zero_row].transpose(1,0)
-            # world_view_t = world_view_t[e, non_zero_row].transpose(1,0) / self.resolution
-            # world_view_t = (world_view_t - robot_location).transpose(1,0)
+
+            world_view_sem_t = obs[e, 4:4+(self.num_sem_categories), :, :].reshape((self.num_sem_categories), -1).transpose(0, 1)
+
+            non_zero_row_1 = torch.abs(point_cloud_t_3d[e,...].reshape(-1,3)).sum(dim=1) > 0
+            non_zero_row_2 = torch.abs(world_view_sem_t).sum(dim=1) > 0
+            non_zero_row_3 = torch.argmax(world_view_sem_t, dim=1) != 6
+
+            non_zero_row = non_zero_row_1 & non_zero_row_2 & non_zero_row_3
+            world_view_sem = world_view_sem_t[non_zero_row].cpu().numpy()
+
+            # print("world_view_sem", world_view_sem.shape)
+            if world_view_sem.shape[0] <50:
+                continue
+
+            world_view_label = np.argmax(world_view_sem, axis=1)
 
 
+            world_view_rgb = obs[e, :3, :, :].permute(1,2,0).reshape(-1,3)[non_zero_row].cpu().numpy()
+            world_view_t = world_view_t[non_zero_row].cpu().numpy()
 
-            wolrd_points = torch.cat((world_view_t[non_zero_row].transpose(1,0) / self.resolution,world_view_rgb), 0)
 
-        
-
-            if wolrd_points.shape[1]<4096:
-                pass
-
-                # write_ply_xyz_rgb(world_view_t.transpose(1,0).cpu().numpy(), world_view_rgb.transpose(1,0).cpu().numpy(), "/home/jiazhao/code/navigation/results/world_view_rgb_"+str(self.save_points_count)+".ply")
-            elif torch.max(full_map_points[e, ...]) == 0:
-                # print("init frame")
-                indices = torch.randperm(wolrd_points.shape[1])[:4096]
-                full_map_points[e, ...] = wolrd_points[:,indices]
-
+            if world_view_t.shape[0] >= 512:
+                indx = np.random.choice(world_view_t.shape[0], 512, replace = False)
             else:
-                indices = torch.randperm(wolrd_points.shape[1])[:2048]
-                indices_full_map = torch.randperm(full_map_points.shape[2])[:2048]
-                full_map_points[e, ...] = torch.cat( (full_map_points[e,:,indices_full_map] ,wolrd_points[:,indices]),1)
-            # cv2.imwrite("/home/jiazhao/code/navigation/results/rgb/world_view_rgb_"+str(self.save_points_count)+".png",  cv2.cvtColor(obs[e, :3, :, :].permute(1,2,0).cpu().numpy(),cv2.COLOR_RGB2BGR))
-            # cv2.imwrite("/home/jiazhao/code/navigation/results/depth/world_view_depth_"+str(self.save_points_count)+".png", depth.permute(1,2,0).cpu().numpy())
+                indx = np.linspace(0, world_view_t.shape[0]-1, world_view_t.shape[0]).astype(np.int32)
+
+            gl_tree = gl_tree_list[e]
+            gl_tree.init_points_node(world_view_t[indx])
+            per_frame_nodes = gl_tree.add_points(world_view_t[indx], world_view_sem[indx], world_view_rgb[indx], world_view_label[indx], infos[e]['timestep'])
+            scene_nodes = gl_tree.all_points()
+            gl_tree.update_neighbor_points(per_frame_nodes)
+
+
+            sample_points_tensor = torch.tensor(gl_tree.sample_points())   # local map
+
+            # sample_points_tensor[:,:3] = sample_points_tensor[:,:3]/100
+            sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
+            sample_points_tensor[:,2] = sample_points_tensor[:,2] - 0.88 * 100
+            sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution
+
+
+            observation_points[e] = sample_points_tensor.transpose(1, 0)
+            # print(time.time() - time_s)
+
+            #======================= visualize =====================
+            points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
+                args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
+
+            os.makedirs(points_dir,exist_ok=True)
+
+            gl_tree.node_to_points_label_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_label.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
+            # gl_tree.node_to_points_prob_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_prob.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
+
+            # sem_obs = obs[e, 4:4+(self.num_sem_categories), :, :].permute(1, 2, 0).cpu().numpy()
+            # save_semantic(points_dir+"rank_{0}_eps_{1}_step_{2}.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), sem_obs)
+
             
-            # if self.save_points_count%2 == 0:
-            #     write_ply_xyz_rgb(world_view_t.transpose(1,0).cpu().numpy(), world_view_rgb.transpose(1,0).cpu().numpy(), "/home/jiazhao/code/navigation/results/points/world_view_rgb_"+str(self.save_points_count)+".ply")
-            # if self.save_points_count%2 == 0:
-            #     write_ply_xyz_rgb(full_map_points[e,:3,:].transpose(1,0).cpu().numpy(), full_map_points[e,3:,:].transpose(1,0).cpu().numpy(), "/home/jiazhao/code/navigation/results/points/world_view_rgb_"+str(self.save_points_count)+".ply")
 
 
-        obs_map_points = full_map_points.clone() 
-        obs_map_points[:,:3,:] = obs_map_points[:,:3,:] - robot_location[:,:,None] / self.resolution
-
-        # if self.save_points_count%2 == 0:
-        #     write_ply_xyz_rgb(obs_map_points[e,:3,:].transpose(1,0).cpu().numpy(), obs_map_points[e,3:,:].transpose(1,0).cpu().numpy(), "/home/jiazhao/code/navigation/results/points/world_view_rgb_"+str(self.save_points_count)+".ply")
-
-
-        # print( "rotated shape", rotated.shape)
-
-        # print( "translated shape", translated.shape)
-        # write_ply_xyz(translated.cpu().numpy()[0,:3,...].transpose(1, 2, 0).reshape(-1,3),"/home/jiazhao/code/navigation/results/translated"+str(self.save_points_count)+".ply")
-        self.save_points_count+=1
 
         maps2 = torch.cat((maps_last.unsqueeze(1), translated.unsqueeze(1)), 1)
 
         map_pred, _ = torch.max(maps2, 1)
 
-        return fp_map_pred, map_pred, pose_pred, current_poses, full_map_points , obs_map_points
+        return fp_map_pred, map_pred, pose_pred, current_poses, observation_points  

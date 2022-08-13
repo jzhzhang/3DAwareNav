@@ -38,54 +38,19 @@ class SemanticPredMaskRCNN():
             img = vis_output.get_image()
 
         semantic_input = np.zeros((img.shape[0], img.shape[1], 6 + 1))
-        semantic_probability = np.zeros((img.shape[0], img.shape[1], 6 + 1))
+        # semantic_probability = np.zeros((img.shape[0], img.shape[1], 6 + 1))
 
         for j, class_idx in enumerate(
                 seg_predictions[0]['instances'].pred_classes.cpu().numpy()):
-            
-            # all_class_scores = seg_predictions[0]['instances'].all_class_scores.cpu().numpy()
-            # print("seg_predictions[0]['instances'].all_class_scores.shape:")
-            # print(all_class_scores.shape)
-
-            # print("row sum:")
-            # print(np.sum(all_class_scores[0]))
-            # print(np.sum(all_class_scores[1]))
-            # print(np.sum(all_class_scores[2]))
-            # print(np.sum(all_class_scores[3]))
-
-            # print("row max:")
-            # print(np.max(all_class_scores[0]))
-            # print(np.max(all_class_scores[1]))
-            # print(np.max(all_class_scores[2]))
-            # print(np.max(all_class_scores[3]))
-
-            # print("max arg:")
-            # print(np.argmax(all_class_scores[0]),np.argmax(all_class_scores[1]),
-            #     np.argmax(all_class_scores[2]),np.argmax(all_class_scores[3]))
-
-            # score_matrix = seg_predictions[0]['instances'].scores.cpu().numpy()
-            # print("--------------------------------------------------")
-            # print("seg_predictions[0]['instances'].scores.shape:")
-            # print(score_matrix.shape)
-            # print("seg_predictions[0]['instances'].scores:")
-            # print(score_matrix)
-
-            # classes_matrix = seg_predictions[0]['instances'].pred_classes.cpu().numpy()
-            # print("--------------------------------------------------")
-            # print("seg_predictions[0]['instances'].pred_classes.shape:")
-            # print(classes_matrix.shape)
-            # print("seg_predictions[0]['instances'].pred_classes:")
-            # print(classes_matrix)
-            # print("--------------------------------------------------")
 
             import time
             t_s = time.time() 
 
             if class_idx in list(coco_categories_mapping.keys()):
                 # print("class_idx", class_idx)
-                idx = coco_categories_mapping[class_idx]
+                # idx = coco_categories_mapping[class_idx]
                 obj_mask = seg_predictions[0]['instances'].pred_masks[j] * 1.
-                semantic_input[:, :, idx] += obj_mask.cpu().numpy()
+                # semantic_input[:, :, idx] += obj_mask.cpu().numpy()
  
                 #---------------------- semantic probs ---------------------- #
                 tmp_semantic_probability = np.zeros((img.shape[0], img.shape[1], 6 + 1))
@@ -114,14 +79,20 @@ class SemanticPredMaskRCNN():
                 # print(semantic_probability[0,0,:])
                 # print("--------------------------------")
 
-                semantic_probability += tmp_semantic_probability
+                semantic_input += tmp_semantic_probability
             # print(time.time() - t_s)
             #print(cut)
                 #---------------------- semantic probs ---------------------- #
 
 
         # print("xxxx",semantic_input[0, 0, :])
-        semantic_input = semantic_probability
+        # semantic_input = semantic_probability
+
+        # Normalize for Overlap bbox
+        overlap_index = np.where(np.sum(semantic_input, axis=-1)>1)
+        semantic_input[overlap_index] /= np.sum(semantic_input[overlap_index], axis=-1).reshape(-1,1)
+        
+        # make bg as grey
         semantic_input[:,:,-1] = 1 - np.sum(semantic_input[:,:,:-1], axis=-1) # only make bk_prob = 1
 
         #semantic_pred = torch.nn.functional.softmax(seg_predictions[0]['sem_seg'], dim=0).permute(1,2,0).cpu().numpy()
@@ -154,7 +125,7 @@ class ImageSegmentation():
             --input input1.jpeg
             --confidence-threshold {}
             --opts MODEL.WEIGHTS
-            /home/jiazhaozhang/project/navigation/model_final_c10459.pkl
+            ./model/model_final_c10459.pkl
             """.format(args.sem_pred_prob_thr, args.semantic_weight)
 
 
