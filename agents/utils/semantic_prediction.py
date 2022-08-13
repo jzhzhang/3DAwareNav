@@ -87,6 +87,12 @@ class SemanticPredMaskRCNN():
 
         # print("xxxx",semantic_input[0, 0, :])
         # semantic_input = semantic_probability
+
+        # Normalize for Overlap bbox
+        overlap_index = np.where(np.sum(semantic_input, axis=-1)>1)
+        semantic_input[overlap_index] /= np.sum(semantic_input[overlap_index], axis=-1).reshape(-1,1)
+        
+        # make bg as grey
         semantic_input[:,:,-1] = 1 - np.sum(semantic_input[:,:,:-1], axis=-1) # only make bk_prob = 1
 
         #semantic_pred = torch.nn.functional.softmax(seg_predictions[0]['sem_seg'], dim=0).permute(1,2,0).cpu().numpy()
