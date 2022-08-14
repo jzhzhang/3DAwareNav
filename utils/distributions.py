@@ -56,7 +56,7 @@ class DiagGaussian(nn.Module):
         zeros = torch.zeros(action_mean.size())
         if x.is_cuda:
             # zeros = zeros.cuda()
-            zeros = zeros.to("cuda:0")
+            zeros = zeros.to(x.device)
 
 
         action_logstd = self.logstd(zeros)
