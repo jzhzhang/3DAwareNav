@@ -263,9 +263,9 @@ def get_args():
     # else:
     #     args.sem_gpu_id = 1
 
-#     if args.num_mini_batch == "auto":
-#         args.num_mini_batch = max(args.num_processes // 2, 1)
-#     else:
-    args.num_mini_batch = int(args.num_mini_batch)
+    if args.num_mini_batch == "auto":
+        args.num_mini_batch = max(args.num_processes // 2, 1)
+    else:
+        args.num_mini_batch = int(args.num_mini_batch)
 
     return args
