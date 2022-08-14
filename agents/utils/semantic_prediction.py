@@ -125,7 +125,7 @@ class ImageSegmentation():
             --input input1.jpeg
             --confidence-threshold {}
             --opts MODEL.WEIGHTS
-            ./model/model_final_c10459.pkl
+            ./weight/model_final_c10459.pkl
             """.format(args.sem_pred_prob_thr, args.semantic_weight)
 
 

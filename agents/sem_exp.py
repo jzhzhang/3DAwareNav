@@ -128,9 +128,14 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         # print("action: ", action)
 
 
-        # save final img every 3 eps
-        if (self.episode_no-1) % 3==0 and (self.args.visualize or self.args.print_images) and ( self.timestep == 499 or action == 0) :
+        # save final img every step
+        if (self.episode_no-1) % 1==0 and (self.args.visualize or self.args.print_images) :
             self._visualize_img(planner_inputs, action)
+
+
+        # # save final img every 3 eps
+        # if (self.episode_no-1) % 3==0 and (self.args.visualize or self.args.print_images) and ( self.timestep == 499 or action == 0) :
+        #     self._visualize_img(planner_inputs, action)
 
         # save gif every 50 eps
         if (self.episode_no-1) % 50==0 and (self.args.visualize or self.args.print_images) :

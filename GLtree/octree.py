@@ -160,6 +160,7 @@ class GL_tree:
         self.y_rb_tree = RedBlackTree(self.opt.interval_size)
         self.z_rb_tree = RedBlackTree(self.opt.interval_size)
         self.scene_node = set()
+        self.observation_window = set()
 
     def init_points_node(self, points):
         self.x_tree_node_list = []

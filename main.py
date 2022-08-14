@@ -1,4 +1,4 @@
-#import tensorflow
+import tensorflow
 from collections import deque, defaultdict
 import os
 import logging
@@ -657,39 +657,48 @@ def main():
         found_goal = [0 for _ in range(num_scenes)]
         goal_maps = [np.zeros((local_w, local_h)) for _ in range(num_scenes)]
 
-        for e in range(num_scenes):
-            goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
+        # for e in range(num_scenes):
+        #     goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
 
         confidence_thres = args.sem_pred_lower_bound + nn.Sigmoid()(g_action[:,2]).cpu().numpy()*(1 - args.sem_pred_lower_bound)
-
+        # import time 
+        t_s = time.time()
         for e in range(num_scenes):
 
             cat_pred_threshold[infos[e]['goal_cat_id']].append(confidence_thres[e])
             timestep_threshold[infos[e]['timestep']] += confidence_thres[e]
             timestep_count_threshold[infos[e]['timestep']]+=1
 
+            print("find potential point")
             sample_points_tensor = gl_tree_list[e].find_object_goal_points(gl_tree_list[e].observation_window, goal_cat_id[e], confidence_thres[e])
 
-            # if sample_points_tensor is not None:
-            #     sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
-            #     sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution / 4
-            #     sample_points_tensor = sample_points_tensor.astype(np.int32)
-            #     sample_points_tensor = sample_points_tensor[:,:2]
-            #     # goal_maps[e][sample_points_tensor[:,:2]] = 1
-            #     # print(sample_points_tensor)
-            #     goal_maps[e][np.where((sample_points_tensor[:, 0]>=0) & (sample_points_tensor[:, 0]<local_h)) , np.where((sample_points_tensor[:, 1]>=0) & (sample_points_tensor[:, 1]<local_w))] = 1
+            if sample_points_tensor is not None:
+                sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
+                sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution 
+                sample_points_tensor = sample_points_tensor.astype(np.int32)
+                sample_points_tensor = sample_points_tensor[:,:2]
+                print("before", sample_points_tensor)
+                print("after", np.where((sample_points_tensor[:, 0]>=0) & (sample_points_tensor[:, 0]<local_h) & (sample_points_tensor[:, 1]>=0) & (sample_points_tensor[:, 1]<local_w)))
+                sample_points_tensor = sample_points_tensor[np.where((sample_points_tensor[:, 0]>=0) & (sample_points_tensor[:, 0]<local_w) & (sample_points_tensor[:, 1]>=0) & (sample_points_tensor[:, 1]<local_h))]
 
-            #     found_goal[e] = 1
 
-            cn = infos[e]['goal_cat_id'] + 4
-            if torch.any((local_map[e, cn, :, :] -  confidence_thres[e]) > 0. ):
-                cat_semantic_map = (local_map[e, cn, :, :] - confidence_thres[e]).cpu().numpy()
-                cat_semantic_scores = cat_semantic_map
-                cat_semantic_scores[cat_semantic_scores > 0] = 1.
-                cat_semantic_scores[cat_semantic_scores < 0] = 0.
-
-                goal_maps[e] = cat_semantic_scores
+            if sample_points_tensor is not None and sample_points_tensor.shape[0]>0:
+                goal_maps[e][sample_points_tensor[:,1], sample_points_tensor[:,0]] = 1
                 found_goal[e] = 1
+            else:
+                goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
+        print(time.time() - t_s)
+
+
+            # cn = infos[e]['goal_cat_id'] + 4
+            # if torch.any((local_map[e, cn, :, :] -  confidence_thres[e]) > 0. ):
+            #     cat_semantic_map = (local_map[e, cn, :, :] - confidence_thres[e]).cpu().numpy()
+            #     cat_semantic_scores = cat_semantic_map
+            #     cat_semantic_scores[cat_semantic_scores > 0] = 1.
+            #     cat_semantic_scores[cat_semantic_scores < 0] = 0.
+
+            #     goal_maps[e] = cat_semantic_scores
+            #     found_goal[e] = 1
 
                 # print("score", confidence_thres)
                 # print("local_map", local_map[e, cn, :, :])

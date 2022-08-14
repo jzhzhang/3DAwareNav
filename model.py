@@ -436,7 +436,7 @@ class Semantic_Mapping(nn.Module):
             sample_points_tensor = torch.tensor(gl_tree.sample_points())   # local map
 
             sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
-            sample_points_tensor[:,2] = sample_points_tensor[:,2] - 0.88 * 100
+            sample_points_tensor[:, 2]  = sample_points_tensor[:, 2] - 0.88 * 100
             sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution
 
 
@@ -450,11 +450,11 @@ class Semantic_Mapping(nn.Module):
             # print(time.time() - time_s)
 
             #======================= visualize =====================
-            # points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
-            #     args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
+            points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
+                args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
 
-            # os.makedirs(points_dir,exist_ok=True)
-
+            os.makedirs(points_dir,exist_ok=True)
+            write_ply_xyz(sample_points_tensor.cpu().numpy(), points_dir+"rank_{0}_eps_{1}_step_{2}_xyz.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]) )
             # gl_tree.node_to_points_label_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_label.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
             # gl_tree.node_to_points_prob_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_prob.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
 
