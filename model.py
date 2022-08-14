@@ -156,7 +156,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         
         # T2 = time.time()
         # print('point propagation run time: %s ms' % ((T2 - T1)*1000))
-        points_map_cu = points_map.to("cuda:2")
+        points_map_cu = points_map.to(inputs_map.device)
         x = torch.cat((inputs_map, points_map_cu), 1)
         
         # 2D map encoder (base)
@@ -510,7 +510,7 @@ class Semantic_Mapping(nn.Module):
             sample_points_tensor_tmp = sample_points_tensor[np.where((sample_points_tensor[:, 0]>=0) & (sample_points_tensor[:, 0]<local_w) & \
                 (sample_points_tensor[:, 1]>=0) & (sample_points_tensor[:, 1]<local_h))]
             sample_points_tensor_pos = sample_points_tensor_tmp[:, :2].long()
-            
+
 
             observation_points[e] = sample_points_tensor.transpose(1, 0)
             # sample_points_tensor_pos = sample_points_tensor_tmp[:, :2].long()
