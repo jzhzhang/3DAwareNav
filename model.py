@@ -454,8 +454,8 @@ class Semantic_Mapping(nn.Module):
 
         import time
         for e in range(bs):
-            if str(infos[e]["episode_no"]) not in ['7']:
-                continue
+            # if str(infos[e]["episode_no"]) not in ['7']:
+            #     continue
             #if str(infos[e]["episode_no"]) == '14':
             #     print(cut)
             #if str(infos[e]["episode_no"]) == '10':
@@ -507,9 +507,9 @@ class Semantic_Mapping(nn.Module):
             sample_points_tensor[:, 2]  = sample_points_tensor[:, 2] - 0.88 * 100
             sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution
             # sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / (args.map_resolution * args.global_downscaling)
-            sample_points_tensor_tmp = sample_points_tensor[np.where((sample_points_tensor[:, 0]>=0) & (sample_points_tensor[:, 0]<local_w) & \
-                (sample_points_tensor[:, 1]>=0) & (sample_points_tensor[:, 1]<local_h))]
-            sample_points_tensor_pos = sample_points_tensor_tmp[:, :2].long()
+            # sample_points_tensor_tmp = sample_points_tensor[np.where((sample_points_tensor[:, 0]>=0) & (sample_points_tensor[:, 0]<local_w) & \
+            #     (sample_points_tensor[:, 1]>=0) & (sample_points_tensor[:, 1]<local_h))]
+            # sample_points_tensor_pos = sample_points_tensor_tmp[:, :2].long()
 
 
             observation_points[e] = sample_points_tensor.transpose(1, 0)
