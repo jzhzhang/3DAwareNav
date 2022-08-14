@@ -95,7 +95,10 @@ def construct_envs(args):
 
 
     # gpu_visible_devices = [2,2,2,2,2,3,3,3,3,3]
-    gpu_visible_devices = [3]
+
+    # gpu_visible_devices = [1,1,1,1,1,3,3,3,3,3]
+    gpu_visible_devices = [int(str_gpu_id) for str_gpu_id in args.sim_gpu_id.split(",")]
+
 
     print("Scenes per thread:")
     for i in range(args.num_processes):

@@ -14,6 +14,9 @@ import envs.utils.pose as pu
 import agents.utils.visualization as vu
 from agents.utils.rednet import SemanticPredRedNet, draw_sem_img
 
+import imageio
+
+visualize_img_list = []
 
 class Sem_Exp_Env_Agent(ObjectGoal_Env):
     """The Sem_Exp environment agent class. A seperate Sem_Exp_Env_Agent class
@@ -124,15 +127,16 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         action = self._plan(planner_inputs)
         # print("action: ", action)
 
+        map_img = self._visualize_map(planner_inputs)
+        # save final img every 3 eps
+        if (self.episode_no-1) % 3==0 and (self.args.visualize or self.args.print_images) and ( self.timestep == 499 or action == 0) :
+            self._visualize_img(map_img, action)
 
 
-        if (self.args.visualize or self.args.print_images) and (self.episode_no-1) % 3==0 : # and ( self.timestep == 499 or action == 0) :
-            self._visualize(planner_inputs)
+        # save gif every 50 eps
+        if (self.episode_no-1) % 50==0 and (self.args.visualize or self.args.print_images) :
+            self._visualize_gif(map_img, action)
 
-
-
-        # if (self.args.visualize or self.args.print_images) :
-        #     self._visualize(planner_inputs)
 
         self.info['timestep'] = self.timestep
         self.info['episode_no'] = self.episode_no
@@ -408,17 +412,9 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
 
 
-
-    def _visualize(self, inputs):
-        print("===================== vis img {0}_{1}==========================".format(self.episode_no, self.timestep ))
+    def _visualize_map(self, inputs):
         args = self.args
-        dump_dir = "{}/dump/{}/".format(args.dump_location,
-                                        args.exp_name)
-        ep_dir = '{}/episodes/thread_{}/eps_{}/'.format(
-            dump_dir, self.rank, self.episode_no)
-        if not os.path.exists(ep_dir):
-            os.makedirs(ep_dir)
-
+        
         map_pred = inputs['map_pred']
         exp_pred = inputs['exp_pred']
         start_x, start_y, start_o, gx1, gx2, gy1, gy2 = inputs['pose_pred']
@@ -481,13 +477,50 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
                  int(color_palette[9] * 255))
         cv2.drawContours(self.vis_image, [agent_arrow], 0, color, -1)
 
+        return self.vis_image
+
+    def _visualize_gif(self, map_img, action):
+        print("===================== gif save img {0}_{1}==========================".format(self.episode_no, self.timestep ))
+        args = self.args
+        dump_dir = "{}/dump/{}/".format(args.dump_location,
+                                        args.exp_name)
+        ep_dir = '{}/episodes/thread_{}/eps_{}/'.format(
+            dump_dir, self.rank, self.episode_no)
+        if not os.path.exists(ep_dir):
+            os.makedirs(ep_dir)
+
         if args.visualize:
             # Displaying the image
-            cv2.imshow("Thread {}".format(self.rank), self.vis_image)
+            cv2.imshow("Thread {}".format(self.rank), map_img)
+            cv2.waitKey(1)
+
+        if args.print_images:
+
+            visualize_img_list.append(cv2.cvtColor(map_img,cv2.COLOR_BGR2RGB))
+            if self.timestep == 499 or action == 0:
+                fn_gif = '{}/episodes/thread_{}/eps_{}/{}-{}-Vis-{}.gif'.format(
+                    dump_dir, self.rank, self.episode_no,
+                    self.rank, self.episode_no, self.timestep)
+                imageio.mimsave(fn_gif, visualize_img_list)
+                visualize_img_list.clear()
+
+    def _visualize_img(self, map_img, action):
+        print("===================== map img {0}_{1}==========================".format(self.episode_no, self.timestep ))
+        args = self.args
+        dump_dir = "{}/dump/{}/".format(args.dump_location,
+                                        args.exp_name)
+        ep_dir = '{}/episodes/thread_{}/eps_{}/'.format(
+            dump_dir, self.rank, self.episode_no)
+        if not os.path.exists(ep_dir):
+            os.makedirs(ep_dir)
+
+        if args.visualize:
+            # Displaying the image
+            cv2.imshow("Thread {}".format(self.rank), map_img)
             cv2.waitKey(1)
 
         if args.print_images:
             fn = '{}/episodes/thread_{}/eps_{}/{}-{}-Vis-{}.png'.format(
                 dump_dir, self.rank, self.episode_no,
                 self.rank, self.episode_no, self.timestep)
-            cv2.imwrite(fn, self.vis_image)
+            cv2.imwrite(fn, map_img)

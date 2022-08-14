@@ -7,7 +7,7 @@ import cv2
 from utils.distributions import Categorical, DiagGaussian
 from utils.model import get_grid, ChannelPool, Flatten, NNBase
 import envs.utils.depth_utils as du
-from utils.pointnet import PointNetEncoder, PointNetEncoder_STN
+from utils.pointnet import PointNetEncoder
 from utils.ply import write_ply_xyz, write_ply_xyz_rgb
 from utils.img_save import save_semantic, save_KLdiv
 
@@ -503,9 +503,6 @@ class Semantic_Mapping(nn.Module):
             sample_points_tensor = torch.tensor(gl_tree.sample_points())   # local map
 
 
-            local_w = local_h = int(args.map_size_cm /( args.global_downscaling * args.map_resolution) )
-
-            # postion normalization
             sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
             sample_points_tensor[:,2] = sample_points_tensor[:,2] - 0.88 * 100
             sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution
@@ -516,49 +513,24 @@ class Semantic_Mapping(nn.Module):
 
             goal_maps[e][0][sample_points_tensor_pos[:, 1], sample_points_tensor_pos[:, 0]] = 1
 
+
             observation_points[e] = sample_points_tensor.transpose(1, 0)
+
+
+
+
+
             # print(time.time() - time_s)
 
-            # filter the point
-            input_points_np = observation_points[e].cpu().numpy()
-            input_points_np = input_points_np.transpose(1, 0)
-            input_points_np = input_points_np[np.where( (input_points_np[:, 0] >= 0) & (input_points_np[:, 0] < local_w) & \
-                (input_points_np[:, 1] >= 0) & (input_points_np[:, 1] < local_h) ) ]
-            input_points_fil = torch.from_numpy(input_points_np)
-            input_points_pos = input_points_fil[:, :2].long()
 
-            # get the index
-            points_map_index = input_points_pos[:, 1]* local_h + input_points_pos[:, 0]
-            points_map_index = points_map_index.reshape(input_points_fil.shape[0])
-
-            # get the value
-            points_map_value = input_points_fil[:, 10].reshape(input_points_fil.shape[0])
-
-            # scatter the value and normalization
-            points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
-
-            point_cnt = torch.count_nonzero(points_map_tmp).item()
-            
-            points_map_tmp_extend = torch.zeros([local_w * local_h - points_map_tmp.shape[0]], dtype=torch.float)
-            points_map_tmp = torch.cat((points_map_tmp, points_map_tmp_extend), 0).reshape(1, local_w, local_h)       
-            '''
-            maps_dir = 'tmp/maps/{}/episodes/thread_{}/eps_{}/'.format(args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
-            os.makedirs(maps_dir,exist_ok=True)
-            save_KLdiv(maps_dir+"rank_{0}_eps_{1}_step_{2}_2dmap.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), points_map_tmp)
-            # print(points_map_tmp.shape)
-            # print(points_map_tmp)
-
-            save_KLdiv(maps_dir+"rank_{0}_eps_{1}_step_{2}_2dmap_jiazhao.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), goal_maps[e])
-            '''
             #======================= visualize =====================
-            points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
-                args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
+            # points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
+            #     args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
 
-            os.makedirs(points_dir,exist_ok=True)
-            
-            # write_ply_xyz(sample_points_tensor.cpu().numpy(), points_dir+"rank_{0}_eps_{1}_step_{2}_xyz.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]) )
-            
-            #gl_tree.node_to_points_label_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_label.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
+            # os.makedirs(points_dir,exist_ok=True)
+
+            # gl_tree.node_to_points_label_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_label.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
+
             # gl_tree.node_to_points_prob_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_prob.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
 
             #gl_tree.node_to_points_kl_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_kldiv.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)

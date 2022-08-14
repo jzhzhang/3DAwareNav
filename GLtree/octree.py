@@ -150,7 +150,6 @@ class GL_tree:
         self.observation_window = set()
         self.observation_window_size = opt.observation_window_size
 
-
     def reset_gltree(self):
         del self.x_rb_tree
         del self.y_rb_tree
@@ -320,17 +319,9 @@ class GL_tree:
             p_bilateral[:p_xyz.shape[0]] = p_xyz
             p_bilateral[p_xyz.shape[0]:] = p_feat
 
-            # d.addPairwiseEnergy(p_bilateral.astype(np.float32),1)
 
             # inference
             Q = d.inference(5)
-
-            probs_matrix = np.array(Q)
-            # print("probs matrix shape:", probs_matrix.shape) # 7*N
-            # print(probs_matrix[:,1])
-
-            # MAP = np.argmax(Q, axis=0).reshape(-1)
-            # print("map shape:", MAP.shape)
 
             # update label
             for index, node in enumerate(per_image_node_set):
@@ -383,6 +374,26 @@ class GL_tree:
             node.kl_div = temp_kl_div_max
 
 
+    def find_object_goal_points(self, node_set, goal_obj_id, threshold):
+        goal_list = []
+        for node in node_set:
+            if node.label != goal_obj_id or node.seg_prob_fused[goal_obj_id] < threshold:
+                continue
+            count = 0
+            for i in range(len(habitat_labels)):
+                if node.branch_array[i] is not None and node.branch_array[i].label == goal_obj_id:
+                    count += 1 
+            if count >2:
+                goal_list.append(node)
+
+        if len(goal_list) == 0:
+            return None 
+
+        observation_points = np.zeros((len(goal_list), 3)) # x,y,z  
+        for i, node in enumerate(goal_list):
+            observation_points[i] = node.point_coor
+
+        return observation_points
 
 
     def node_to_points_label_ply(self, file_name, point_nodes):

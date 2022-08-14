@@ -67,7 +67,9 @@ def main():
     # Logging and loss variables
     num_scenes = args.num_processes
     num_episodes = int(args.num_eval_episodes)
-    device = args.device = torch.device("cuda:2" if args.cuda else "cpu")
+
+    device = args.device = torch.device(args.policy_gpu_id if args.cuda else "cpu")
+
 
     g_masks = torch.ones(num_scenes).float().to(device)
 
@@ -116,6 +118,12 @@ def main():
 
     per_step_g_rewards = deque(maxlen=1000)
 
+    per_step_explore_rewards = deque(maxlen=1000)
+    per_step_env_rewards = deque(maxlen=1000)
+
+
+
+
     g_process_rewards = np.zeros((num_scenes))
 
     # Starting environments
@@ -126,7 +134,7 @@ def main():
     torch.set_grad_enabled(False)
 
     gl_tree_list = []
-    for _ in range(num_scenes):
+    for e in range(num_scenes):
         gl_tree_list.append(GL_tree(args))
 
 
@@ -585,9 +593,16 @@ def main():
             g_reward = torch.from_numpy(np.asarray(
                 [infos[env_idx]['g_reward'] for env_idx in range(num_scenes)])
             ).float().to(device)
+
+            per_step_env_rewards.append(np.mean(g_reward.cpu().numpy()))
+            per_step_explore_rewards.append(np.mean(args.intrinsic_rew_coeff * intrinsic_rews.detach().cpu().numpy()))
+
             g_reward += args.intrinsic_rew_coeff * intrinsic_rews.detach()
 
             g_process_rewards += g_reward.cpu().numpy()
+
+
+
             g_total_rewards = g_process_rewards * \
                 (1 - g_masks.cpu().numpy())
             g_process_rewards *= g_masks.cpu().numpy()
@@ -647,18 +662,26 @@ def main():
         for e in range(num_scenes):
             goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
 
-        confidence_thres = nn.Sigmoid()(g_action[:,2]).cpu().numpy()
-
-
-        # timestep_array[]
-
+        confidence_thres = args.sem_pred_lower_bound + nn.Sigmoid()(g_action[:,2]).cpu().numpy()*(1 - args.sem_pred_lower_bound)
 
         for e in range(num_scenes):
 
             cat_pred_threshold[infos[e]['goal_cat_id']].append(confidence_thres[e])
-            timestep_threshold[infos[e]['timestep']]+=confidence_thres[e]
+            timestep_threshold[infos[e]['timestep']] += confidence_thres[e]
             timestep_count_threshold[infos[e]['timestep']]+=1
 
+            sample_points_tensor = gl_tree_list[e].find_object_goal_points(gl_tree_list[e].observation_window, goal_cat_id[e], confidence_thres[e])
+
+            # if sample_points_tensor is not None:
+            #     sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
+            #     sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution / 4
+            #     sample_points_tensor = sample_points_tensor.astype(np.int32)
+            #     sample_points_tensor = sample_points_tensor[:,:2]
+            #     # goal_maps[e][sample_points_tensor[:,:2]] = 1
+            #     # print(sample_points_tensor)
+            #     goal_maps[e][np.where((sample_points_tensor[:, 0]>=0) & (sample_points_tensor[:, 0]<local_h)) , np.where((sample_points_tensor[:, 1]>=0) & (sample_points_tensor[:, 1]<local_w))] = 1
+
+            #     found_goal[e] = 1
 
             cn = infos[e]['goal_cat_id'] + 4
             if torch.any((local_map[e, cn, :, :] -  confidence_thres[e]) > 0. ):
@@ -691,11 +714,7 @@ def main():
             if args.visualize or args.print_images:
 
                 local_map_thres = local_map[e, 4:, :, :]
-                local_map_thres[local_map_thres < args.sem_pred_prob_thr] = 0 
-
                 local_map_thres[-1, :, :] = 1e-5
-                # p_input['sem_map_pred'] = local_map[e, 4:, :,
-                #                                     :].argmax(0).cpu().numpy()
                 p_input['sem_map_pred'] = local_map_thres.argmax(0).cpu().numpy()
 
         # print("plannar input", planner_inputs[0]['wait'])
@@ -767,6 +786,13 @@ def main():
 
                 log_wr.writer.add_scalar("train/step/reward/mean", np.mean(per_step_g_rewards) , step)
                 log_wr.writer.add_scalar("train/step/reward/median", np.median(per_step_g_rewards) , step)
+
+                log_wr.writer.add_scalar("train/step/explore_reward/mean", np.mean(per_step_explore_rewards) , step)
+                log_wr.writer.add_scalar("train/step/explore_reward/median", np.median(per_step_explore_rewards) , step)
+
+                log_wr.writer.add_scalar("train/step/env_reward/mean", np.mean(per_step_env_rewards) , step)
+                log_wr.writer.add_scalar("train/step/env_reward/median", np.median(per_step_env_rewards) , step)
+
 
                 log_wr.writer.add_scalar("train/eps/reward/mean", np.mean(g_episode_rewards) , step)
                 log_wr.writer.add_scalar("train/eps/reward/median", np.median(g_episode_rewards) , step)
