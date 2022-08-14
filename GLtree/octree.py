@@ -338,10 +338,13 @@ class GL_tree:
             for node in remove_node_list:
                 self.observation_window.remove(node)
 
-        observation_points = np.zeros((4096, 10)) #x,y,z, prob(7)  
+        observation_points = np.zeros((4096, 11)) #x,y,z, prob(7), kl_divergency
+        #observation_points = np.zeros((4096, 10)) #x,y,z, prob(7), kl_divergency
         for i, node in enumerate(self.observation_window):
             observation_points[i,:3] = node.point_coor
             observation_points[i,3:10] = node.seg_prob_fused
+            observation_points[i,10] = node.kl_div
+            # print(i,node.kl_div)
 
         return observation_points
 

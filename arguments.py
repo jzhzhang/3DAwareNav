@@ -30,7 +30,7 @@ def get_args():
                         help='disables CUDA training')
     parser.add_argument("--sim_gpu_id", type=str, default="1,1,1,2,2,2",
                         help="gpu id on which scenes are loaded")
-    parser.add_argument("--sem_gpu_id", type=str, default="cuda:0",
+    parser.add_argument("--sem_gpu_id", type=str, default="cuda:2",
                         help="""gpu id for semantic model,
                                 -1: same as sim gpu, -2: cpu""")
     parser.add_argument("--policy_gpu_id", type=str, default="cuda:0",
@@ -213,6 +213,7 @@ def get_args():
             # GPU Memory required for the SemExp model:
             #       0.8 + 0.4 * args.total_num_scenes (GB)
             # GPU Memory required per thread: 2.6 (GB)
+
     #         min_memory_required = max(0.8 + 0.4 * args.total_num_scenes, 2.6)
     #         # Automatically configure number of training threads based on
     #         # number of GPUs available and GPU memory size
@@ -267,5 +268,6 @@ def get_args():
         args.num_mini_batch = max(args.num_processes // 2, 1)
     else:
         args.num_mini_batch = int(args.num_mini_batch)
+
 
     return args

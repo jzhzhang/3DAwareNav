@@ -135,9 +135,11 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         if (self.episode_no-1) % 3==0 and (self.args.visualize or self.args.print_images) and ( self.timestep == 499 or action == 0) :
             self._visualize_img(map_img, action)
 
+
         # save gif every 50 eps
         if (self.episode_no-1) % 50==0 and (self.args.visualize or self.args.print_images) :
             self._visualize_gif(map_img, action)
+
 
         self.info['timestep'] = self.timestep
         self.info['episode_no'] = self.episode_no
