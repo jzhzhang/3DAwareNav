@@ -42,3 +42,10 @@ def save_semantic(output, sem_seg):
 
     io.imsave(output, sem_seg)
 
+
+
+def save_KLdiv(output, kl_map):
+    kl_map_vis = kl_map[0, :, :].reshape(240,240).cpu()
+    kl_map_vis = np.array(kl_map_vis)
+    kl_map_vis = kl_map_vis.reshape(240, 240)
+    io.imsave(output, kl_map_vis)

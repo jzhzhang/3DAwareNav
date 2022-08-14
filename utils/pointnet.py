@@ -10,6 +10,7 @@ import torch.nn.functional as F
 
 
 
+
 class PointNetEncoder(nn.Module):
     def __init__(self, global_feat=True,  channel=3):
         super(PointNetEncoder, self).__init__()
@@ -56,6 +57,7 @@ class PointNetEncoder(nn.Module):
         else:
             x = x.view(-1, 1024, 1).repeat(1, 1, N)
             return torch.cat([x, pointfeat], 1)
+
 
 
 
@@ -114,4 +116,3 @@ class PointNetEncoder(nn.Module):
 #     if trans.is_cuda:
 #         I = I.to("cuda:0")
 #     loss = torch.mean(torch.norm(torch.bmm(trans, trans.transpose(2, 1)) - I, dim=(1, 2)))
-#     return loss
