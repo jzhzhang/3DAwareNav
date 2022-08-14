@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from torch_scatter import scatter
 import numpy as np
 import cv2
 from utils.distributions import Categorical, DiagGaussian
@@ -8,12 +9,35 @@ from utils.model import get_grid, ChannelPool, Flatten, NNBase
 import envs.utils.depth_utils as du
 from utils.pointnet import PointNetEncoder, PointNetEncoder_STN
 from utils.ply import write_ply_xyz, write_ply_xyz_rgb
-from utils.img_save import save_semantic
+from utils.img_save import save_semantic, save_KLdiv
 
 import os
+import time
 # from pytorch3d.ops import sample_farthest_points
+
 # 3DV
 
+'''
+    # another method
+    for i in range(input_points.shape[0]) : # number of agent 
+        for p in range(input_points.shape[2]) : # number of point (4096)
+            #print(type(input_points[i,10,p].item()))
+            if int(input_points[i,0,p]) == -360 and int(input_points[i,1,p]) == -360 :
+                break
+            if int(input_points[i,0,p]) < 0 or int(input_points[i,0,p]) >= 240 or \
+                int(input_points[i,1,p]) < 0 or int(input_points[i,1,p]) >= 240 :
+                continue
+            points_map[i, 0, int(input_points[i,0,p]), int(input_points[i,1,p])] += input_points[i,10,p].item()
+            points_map_cnt[i, 0, int(input_points[i,0,p]), int(input_points[i,1,p])] += 1.
+    save_KLdiv("./tmp/points/map1/time_{0}.png".format(str(time.time()).replace('.','')), points_map)
+    points_map = torch.div(points_map, points_map_cnt)
+    points_map = torch.where(torch.isnan(points_map), torch.full_like(points_map, 0), points_map)
+    torch.set_printoptions(profile="full")
+    with open("./tmp/points/map1/time_{0}.txt".format(str(time.time()).replace('.','')), "w") as external_file:
+        print(points_map, file=external_file)
+        external_file.close()
+    torch.set_printoptions(profile="default")
+'''
 
 class Goal_Oriented_Semantic_Policy(NNBase):
 
@@ -37,7 +61,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
 
         self.map_net = nn.Sequential(
             nn.MaxPool2d(2),
-            nn.Conv2d(num_sem_categories + 8, 32, 3, stride=1, padding=1),
+            nn.Conv2d(num_sem_categories + 8 + 1, 32, 3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, stride=1, padding=1),
@@ -50,14 +74,14 @@ class Goal_Oriented_Semantic_Policy(NNBase):
             nn.ReLU()
         )
 
-        self.point_Encoder = PointNetEncoder(global_feat=True,  channel=10)
-        self.points_compress = nn.Linear(1024, 32)
+        #self.point_Encoder = PointNetEncoder(global_feat=True,  channel=11)
+        #self.points_compress = nn.Linear(1024, 32)
 
         self.orientation_emb = nn.Embedding(72, 8)
         self.goal_emb = nn.Embedding(num_sem_categories, 8)
         self.time_emb = nn.Embedding(500, 8)
 
-        self.input_chan = 32 + 32 + 3 * 8  # 92
+        self.input_chan = 32 + 3 * 8  # 56
         self.policy_net = nn.Sequential(
             nn.MaxPool2d(2),
             nn.Conv2d(self.input_chan, 128, 3, stride=1, padding=1),
@@ -90,27 +114,69 @@ class Goal_Oriented_Semantic_Policy(NNBase):
 
     def forward(self, inputs_map, input_points, rnn_hxs, masks, extras):
         
-        # 2D map encoder (base)
-        x = self.map_net(inputs_map)
-       
         # 3D points information
         #   output: 1 * 32
-        # points_entropy_x  = self.point_entropy_Encoder(input_entropy_points)
-        points_x  = self.point_Encoder(input_points)
-        points_x  = self.points_compress(points_x)
+        #   !!! computing on CPU
+
+        # T1 = time.time()
+    ### !!! 
+        '''
+        with open("./tmp/points/aaa.txt", "a") as external_file:
+            torch.set_printoptions(profile="full")
+            print(points_map_index, file=external_file)
+            print(points_map_index_tmp, file=external_file)
+            torch.set_printoptions(profile="default") 
+            external_file.close()
+        '''
+        points_map = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float)
+        for p in range(inputs_map.shape[0]) :
+            # filter the point
+            input_points_np = input_points[p].cpu().numpy()
+            input_points_np = input_points_np.transpose(1, 0)
+            input_points_np = input_points_np[np.where( (input_points_np[:, 0] >= 0) & (input_points_np[:, 0] < self.in_size_x) & \
+                (input_points_np[:, 1] >= 0) & (input_points_np[:, 1] < self.in_size_y) ) ]
+            input_points_fil = torch.from_numpy(input_points_np)
+            input_points_pos = input_points_fil[:, :2].long()
+
+            # get the index
+            points_map_index = input_points_fil[:, 1] * self.in_size_y + input_points_fil[:, 0]
+            points_map_index = points_map_index.reshape(input_points_fil.shape[0]).long()
+
+            # get the value
+            points_map_value = input_points_fil[:, 10].reshape(input_points_fil.shape[0])
+
+            # scatter the value and normalization
+            points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
+            point_cnt = torch.count_nonzero(points_map_tmp).item()
+            if points_map_tmp.shape[0] >= self.in_size_x * self.in_size_y :
+                points_map_tmp = points_map_tmp[ :self.in_size_x * self.in_size_y].reshape(1, self.in_size_x, self.in_size_y) 
+            else :
+                points_map_tmp_extend = torch.zeros([self.in_size_x * self.in_size_y - points_map_tmp.shape[0]], dtype=torch.float)
+                points_map_tmp = torch.cat((points_map_tmp, points_map_tmp_extend), 0).reshape(1, self.in_size_x, self.in_size_y)
+        
+        # T2 = time.time()
+        # print('point propagation run time: %s ms' % ((T2 - T1)*1000))
+        points_map_cu = points_map.to("cuda:2")
+        x = torch.cat((inputs_map, points_map_cu), 1)
+        
+        # 2D map encoder (base)
+        x = self.map_net(x)
+       
+        # 3D points information backup
+        #   output: 1 * 32
+        # points_x = self.point_Encoder(input_points)
+        # points_x = self.points_compress(points_x)
 
         # extra information
         #   output: 1 * (8 * 3 = 24)
-        # print("extras shape: ",extras.shape)
         orientation_emb = self.orientation_emb(extras[:, 0])
         goal_emb = self.goal_emb(extras[:, 1])
         time_effe_emb = self.time_emb(extras[:, 2])
-        extra_tot = torch.cat((points_x, orientation_emb, goal_emb, time_effe_emb), 1)
-
+        extra_tot = torch.cat((orientation_emb, goal_emb, time_effe_emb), 1)
         # concatenation
-        extra_tot = extra_tot.reshape([points_x.shape[0], 32 + 3 * 8, 1, 1 ])
-        extra_tot = extra_tot.expand([points_x.shape[0], 32 + 3 * 8, self.mid_size_x, self.mid_size_y ])
-
+    ### !!!
+        extra_tot = extra_tot.reshape([inputs_map.shape[0], 3 * 8, 1, 1 ])
+        extra_tot = extra_tot.expand([inputs_map.shape[0], 3 * 8, self.mid_size_x, self.mid_size_y ])
         x = torch.cat((x, extra_tot), 1)
 
         # policy net
@@ -384,17 +450,18 @@ class Semantic_Mapping(nn.Module):
         points_pose[:,2] =points_pose[:,2] * np.pi /180 
         points_pose[:,:2] = points_pose[:,:2] * 100
 
+        goal_maps = torch.zeros([bs, 1, 240, 240],dtype=float)
 
         import time
         for e in range(bs):
-            # if str(infos[e]["episode_no"]) == '14':
+            if str(infos[e]["episode_no"]) not in ['7']:
+                continue
+            #if str(infos[e]["episode_no"]) == '14':
             #     print(cut)
-            # if str(infos[e]["episode_no"]) == '10':
+            #if str(infos[e]["episode_no"]) == '10':
             #     exit(0)
             # if wait_env[e]:
             #     continue
-
-            # save_semantic("tmp/points/rank_{0}_eps_{1}_step_{2}.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), sem_obs)
 
             time_s = time.time()
 
@@ -435,35 +502,73 @@ class Semantic_Mapping(nn.Module):
 
             sample_points_tensor = torch.tensor(gl_tree.sample_points())   # local map
 
-            # sample_points_tensor[:,:3] = sample_points_tensor[:,:3]/100
+
+            local_w = local_h = int(args.map_size_cm /( args.global_downscaling * args.map_resolution) )
+
+            # postion normalization
             sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
             sample_points_tensor[:,2] = sample_points_tensor[:,2] - 0.88 * 100
             sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution
+            # sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / (args.map_resolution * args.global_downscaling)
+            sample_points_tensor_tmp = sample_points_tensor[np.where((sample_points_tensor[:, 0]>=0) & (sample_points_tensor[:, 0]<local_w) & \
+                (sample_points_tensor[:, 1]>=0) & (sample_points_tensor[:, 1]<local_h))]
+            sample_points_tensor_pos = sample_points_tensor_tmp[:, :2].long()
 
+            goal_maps[e][0][sample_points_tensor_pos[:, 1], sample_points_tensor_pos[:, 0]] = 1
 
             observation_points[e] = sample_points_tensor.transpose(1, 0)
             # print(time.time() - time_s)
 
-            #======================= visualize =====================
+            # filter the point
+            input_points_np = observation_points[e].cpu().numpy()
+            input_points_np = input_points_np.transpose(1, 0)
+            input_points_np = input_points_np[np.where( (input_points_np[:, 0] >= 0) & (input_points_np[:, 0] < local_w) & \
+                (input_points_np[:, 1] >= 0) & (input_points_np[:, 1] < local_h) ) ]
+            input_points_fil = torch.from_numpy(input_points_np)
+            input_points_pos = input_points_fil[:, :2].long()
+
+            # get the index
+            points_map_index = input_points_pos[:, 1]* local_h + input_points_pos[:, 0]
+            points_map_index = points_map_index.reshape(input_points_fil.shape[0])
+
+            # get the value
+            points_map_value = input_points_fil[:, 10].reshape(input_points_fil.shape[0])
+
+            # scatter the value and normalization
+            points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
+
+            point_cnt = torch.count_nonzero(points_map_tmp).item()
+            
+            points_map_tmp_extend = torch.zeros([local_w * local_h - points_map_tmp.shape[0]], dtype=torch.float)
+            points_map_tmp = torch.cat((points_map_tmp, points_map_tmp_extend), 0).reshape(1, local_w, local_h)       
             '''
+            maps_dir = 'tmp/maps/{}/episodes/thread_{}/eps_{}/'.format(args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
+            os.makedirs(maps_dir,exist_ok=True)
+            save_KLdiv(maps_dir+"rank_{0}_eps_{1}_step_{2}_2dmap.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), points_map_tmp)
+            # print(points_map_tmp.shape)
+            # print(points_map_tmp)
+
+            save_KLdiv(maps_dir+"rank_{0}_eps_{1}_step_{2}_2dmap_jiazhao.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), goal_maps[e])
+            '''
+            #======================= visualize =====================
             points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
                 args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
 
             os.makedirs(points_dir,exist_ok=True)
-
-            gl_tree.node_to_points_label_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_label.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
-            '''
+            
+            # write_ply_xyz(sample_points_tensor.cpu().numpy(), points_dir+"rank_{0}_eps_{1}_step_{2}_xyz.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]) )
+            
+            #gl_tree.node_to_points_label_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_label.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
             # gl_tree.node_to_points_prob_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_prob.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
 
-            # sem_obs = obs[e, 4:4+(self.num_sem_categories), :, :].permute(1, 2, 0).cpu().numpy()
-            # save_semantic(points_dir+"rank_{0}_eps_{1}_step_{2}.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), sem_obs)
+            #gl_tree.node_to_points_kl_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_kldiv.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
 
-            
-
+            #sem_obs = obs[e, 4:4+(self.num_sem_categories), :, :].permute(1, 2, 0).cpu().numpy()
+            #save_KLdiv(points_dir+"rank_{0}_eps_{1}_step_{2}.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), sem_obs)
 
 
         maps2 = torch.cat((maps_last.unsqueeze(1), translated.unsqueeze(1)), 1)
 
         map_pred, _ = torch.max(maps2, 1)
 
-        return fp_map_pred, map_pred, pose_pred, current_poses, observation_points  
+        return fp_map_pred, map_pred, pose_pred, current_poses, observation_points

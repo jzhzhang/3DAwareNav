@@ -67,7 +67,7 @@ def main():
     # Logging and loss variables
     num_scenes = args.num_processes
     num_episodes = int(args.num_eval_episodes)
-    device = args.device = torch.device("cuda:0" if args.cuda else "cpu")
+    device = args.device = torch.device("cuda:2" if args.cuda else "cpu")
 
     g_masks = torch.ones(num_scenes).float().to(device)
 
@@ -147,7 +147,7 @@ def main():
     local_h = int(full_h / args.global_downscaling)
 
     # Initializing full and local map
-    points_channel_num = 10
+    points_channel_num = 11
     full_map = torch.zeros(num_scenes, nc, full_w, full_h).float().to(device)
     local_map = torch.zeros(num_scenes, nc, local_w,
                             local_h).float().to(device)
@@ -347,7 +347,7 @@ def main():
 
 
 
-    _, local_map, _, local_pose, observation_points = \
+    _, local_map, _, local_pose, observation_points= \
         sem_map_module(obs, poses, local_map, local_pose, origins, observation_points, goal_cat_id, gl_tree_list, infos, wait_env, args)
 
 
@@ -511,7 +511,7 @@ def main():
                  in range(num_scenes)]))
 
 
-        _, local_map, _, local_pose, observation_points = \
+        _, local_map, _, local_pose, observation_points= \
             sem_map_module(obs, poses, local_map, local_pose, origins, observation_points, goal_cat_id, gl_tree_list, infos, wait_env, args)
 
 

@@ -41,7 +41,7 @@ class STN3d(nn.Module):
         iden = Variable(torch.from_numpy(np.array([1, 0, 0, 0, 1, 0, 0, 0, 1]).astype(np.float32))).view(1, 9).repeat(
             batchsize, 1)
         if x.is_cuda:
-            iden = iden.to("cuda:0")
+            iden = iden.to("cuda:2")
         x = x + iden
         x = x.view(-1, 3, 3)
         return x
@@ -81,7 +81,7 @@ class STNkd(nn.Module):
         iden = Variable(torch.from_numpy(np.eye(self.k).flatten().astype(np.float32))).view(1, self.k * self.k).repeat(
             batchsize, 1)
         if x.is_cuda:
-            iden = iden.to("cuda:0")
+            iden = iden.to("cuda:2")
         x = x + iden
         x = x.view(-1, self.k, self.k)
         return x
@@ -189,6 +189,6 @@ def feature_transform_reguliarzer(trans):
     d = trans.size()[1]
     I = torch.eye(d)[None, :, :]
     if trans.is_cuda:
-        I = I.to("cuda:0")
+        I = I.to("cuda:2")
     loss = torch.mean(torch.norm(torch.bmm(trans, trans.transpose(2, 1)) - I, dim=(1, 2)))
     return loss

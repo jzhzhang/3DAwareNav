@@ -30,7 +30,7 @@ def get_args():
                         help='disables CUDA training')
     parser.add_argument("--sim_gpu_id", type=int, default=0,
                         help="gpu id on which scenes are loaded")
-    parser.add_argument("--sem_gpu_id", type=str, default="cuda:0",
+    parser.add_argument("--sem_gpu_id", type=str, default="cuda:2",
                         help="""gpu id for semantic model,
                                 -1: same as sim gpu, -2: cpu""")
 
@@ -245,7 +245,7 @@ def get_args():
                     num_threads - args.num_processes_per_gpu * (num_gpus - 1))
                 args.num_processes = num_threads
 
-            args.sim_gpu_id = 0
+            args.sim_gpu_id = 3
 
             print("Auto GPU config:")
             print("Number of processes: {}".format(args.num_processes))
@@ -254,7 +254,7 @@ def get_args():
             print("Number of processes per GPU: {}".format(
                 args.num_processes_per_gpu))
     else:
-        args.sem_gpu_id = 1
+        args.sem_gpu_id = 2
 
     if args.num_mini_batch == "auto":
         args.num_mini_batch = max(args.num_processes // 2, 1)
