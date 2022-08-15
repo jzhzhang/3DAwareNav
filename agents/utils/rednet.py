@@ -419,7 +419,7 @@ class RedNetResizeWrapper(nn.Module):
         # depth_clip = ((depth < 1.0) & (depth > 0.0)).squeeze(1)
         depth = self.semmap_depth_norm(depth)
         with torch.no_grad():
-            scores = self.rednet(rgb, depth)
+            scores = self.rednet(rgb, depth) # 1 * 40 * 480 * 640
             pred = (torch.max(scores, 1)[1] ) # B x 480 x 640
             #print("pred shape",pred,pred.shape)
             return scores, pred[0]
@@ -519,7 +519,9 @@ class SemanticPredRedNet():
 
 
         #print("output shape is",output.shape)
-        output = output[0]
+        output = output[0] # 40*480*640
+        # output = output *0.1
+        # output[output<self.threshold] = 0 #0.9: 30 1.1: 26
 
         #=================entropy================
         # print("direct output semantic", output.shape)
@@ -527,21 +529,19 @@ class SemanticPredRedNet():
         entropy_tmp = -semantic_pred*np.log(semantic_pred)
         sem_entropy = np.sum(entropy_tmp, axis=2)
 
-
+        output = torch.nn.functional.softmax(output, dim=0).permute(1,2,0).cpu().numpy()
+        output[np.where(np.max(output, axis=-1) < self.threshold)] = 0
+        
         semantic_input = np.zeros((img.shape[1], img.shape[2], len(habitat_labels) ))
+        
         for i in range(0, 40):
             if i in fourty221.keys():
 
                 j = fourty221[i]
-                semantic_input[:, :, j] += (output[i]).cpu().numpy()
-            else:
-                semantic_input[:, :, -1] += (output[i]).cpu().numpy()
+                semantic_input[:, :, j] += output[:,:,i]
 
+        semantic_input[:,:,-1] = 1 - np.sum(semantic_input[:,:,:-1], axis=-1)
 
-
-        print("==========semantic before",semantic_input[0,0,:])
-        semantic_input = np.exp(semantic_input)/np.sum(np.exp(semantic_input), axis=2)[...,None]
-        print("==========semantic",semantic_input[0,0,:])
 
         #=================prob points================
         goal_cat_output = semantic_input[:, :, cat_goal] + 1e-5

@@ -148,6 +148,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
             # scatter the value and normalization
             points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
             # point_cnt = torch.count_nonzero(points_map_tmp).item()
+<<<<<<< HEAD
             if points_map_tmp.shape[0] >= self.in_size_x * self.in_size_y :
                 points_map_tmp = points_map_tmp[ :self.in_size_x * self.in_size_y].reshape(1, self.in_size_x, self.in_size_y) 
             else :
@@ -155,6 +156,16 @@ class Goal_Oriented_Semantic_Policy(NNBase):
                 points_map_tmp = torch.cat((points_map_tmp, points_map_tmp_extend), 0).reshape(1, self.in_size_x, self.in_size_y)
             points_map[p, 0] = points_map_tmp
 
+=======
+            #if points_map_tmp.shape[0] >= self.in_size_x * self.in_size_y :
+            #    points_map_tmp = points_map_tmp[ :self.in_size_x * self.in_size_y].reshape(1, self.in_size_x, self.in_size_y) 
+            # else :
+            points_map_tmp_extend = torch.zeros([self.in_size_x * self.in_size_y - points_map_tmp.shape[0]], dtype=torch.float)
+            points_map_tmp = torch.cat((points_map_tmp, points_map_tmp_extend), 0).reshape(1, self.in_size_x, self.in_size_y)
+
+            points_map[p, 0] = points_map_tmp
+            
+>>>>>>> 998f2c9e5aa5bc5de6786a3f1181dafdd1f7cf62
         # T2 = time.time()
         # print('point propagation run time: %s ms' % ((T2 - T1)*1000))
         points_map_cu = points_map.to(inputs_map.device)
