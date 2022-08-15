@@ -511,11 +511,11 @@ class SemanticPredRedNet():
         img = torch.from_numpy(img).float().to(self.args.sem_gpu_id)
         depth = torch.from_numpy(depth).float().to(self.args.sem_gpu_id)
         output, mask = self.segmentation_model(img,depth)
-        print("mask", mask)
-        print("mask.shape", mask.shape)
+        # print("mask", mask)
+        # print("mask.shape", mask.shape)
         
-        print("output", output)
-        print("output.shape", output.shape)
+        # print("output", output)
+        # print("output.shape", output.shape)
 
 
         #print("output shape is",output.shape)

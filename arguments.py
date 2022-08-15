@@ -36,6 +36,12 @@ def get_args():
     parser.add_argument("--policy_gpu_id", type=str, default="cuda:0",
                         help="""policy gpu id for policy""")
 
+    parser.add_argument("--stop_policy", type=str, default="2D",
+                        help="""stop policy 2D/3D""")
+
+    parser.add_argument("--backbone_2d", type=str, default="maskrcnn",
+                        help="""2d_backbone  maskrcnn/rednet""")
+
 
     # Logging, loading models, visualization
     parser.add_argument('--log_interval', type=int, default=10,

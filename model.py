@@ -129,6 +129,8 @@ class Goal_Oriented_Semantic_Policy(NNBase):
             external_file.close()
         '''
         points_map = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float)
+
+            
         for p in range(inputs_map.shape[0]) :
             # filter the point
             input_points_np = input_points[p].cpu().numpy()
@@ -136,36 +138,32 @@ class Goal_Oriented_Semantic_Policy(NNBase):
             input_points_np = input_points_np[np.where( (input_points_np[:, 0] >= 0) & (input_points_np[:, 0] < self.in_size_x) & \
                 (input_points_np[:, 1] >= 0) & (input_points_np[:, 1] < self.in_size_y) ) ]
             input_points_fil = torch.from_numpy(input_points_np)
-            input_points_pos = input_points_fil[:, :2].long()
+            input_points_pos = torch.tensor(input_points_fil[:, :2], dtype=torch.int64)
+            
+            point_cnt = torch.count_nonzero(input_points_pos).item()
+            if point_cnt == 0 :
+                continue
 
             # get the index
-            points_map_index = input_points_fil[:, 1] * self.in_size_y + input_points_fil[:, 0]
-            points_map_index = points_map_index.reshape(input_points_fil.shape[0]).long()
-
+            points_map_index = input_points_pos[:, 1] * int(self.in_size_y) + input_points_pos[:, 0]
+            
             # get the value
             points_map_value = input_points_fil[:, 10].reshape(input_points_fil.shape[0])
 
             # scatter the value and normalization
             points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
-            # point_cnt = torch.count_nonzero(points_map_tmp).item()
-<<<<<<< HEAD
-            if points_map_tmp.shape[0] >= self.in_size_x * self.in_size_y :
-                points_map_tmp = points_map_tmp[ :self.in_size_x * self.in_size_y].reshape(1, self.in_size_x, self.in_size_y) 
-            else :
-                points_map_tmp_extend = torch.zeros([self.in_size_x * self.in_size_y - points_map_tmp.shape[0]], dtype=torch.float)
-                points_map_tmp = torch.cat((points_map_tmp, points_map_tmp_extend), 0).reshape(1, self.in_size_x, self.in_size_y)
-            points_map[p, 0] = points_map_tmp
-
-=======
-            #if points_map_tmp.shape[0] >= self.in_size_x * self.in_size_y :
-            #    points_map_tmp = points_map_tmp[ :self.in_size_x * self.in_size_y].reshape(1, self.in_size_x, self.in_size_y) 
-            # else :
             points_map_tmp_extend = torch.zeros([self.in_size_x * self.in_size_y - points_map_tmp.shape[0]], dtype=torch.float)
             points_map_tmp = torch.cat((points_map_tmp, points_map_tmp_extend), 0).reshape(1, self.in_size_x, self.in_size_y)
 
             points_map[p, 0] = points_map_tmp
-            
->>>>>>> 998f2c9e5aa5bc5de6786a3f1181dafdd1f7cf62
+
+
+
+
+
+
+
+
         # T2 = time.time()
         # print('point propagation run time: %s ms' % ((T2 - T1)*1000))
         points_map_cu = points_map.to(inputs_map.device)

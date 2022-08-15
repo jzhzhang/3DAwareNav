@@ -40,8 +40,11 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         if args.sem_gpu_id == -1:
             args.sem_gpu_id = config_env.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID
 
-        # self.sem_pred_model = SemanticPredRedNet(args)
-        self.sem_pred_model = SemanticPredMaskRCNN(args)
+        if args.backbone_2d == "maskrcnn":
+            self.sem_pred_model = SemanticPredMaskRCNN(args)
+
+        if args.backbone_2d == "rednet":
+            self.sem_pred_model = SemanticPredRedNet(args)
 
         # initializations for planning:
         self.selem = skimage.morphology.disk(3)
@@ -127,7 +130,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         action = self._plan(planner_inputs)
         # print("action: ", action)
 
-        if (self.episode_no-1) % 3==0 and (self.args.visualize or self.args.print_images) or (self.episode_no-1) % 50==0 and (self.args.visualize or self.args.print_images):
+        if (self.episode_no-1) % 3==0 and (self.args.visualize or self.args.print_images) or (self.episode_no-1) % 10==0 and (self.args.visualize or self.args.print_images):
             map_img = self._visualize_map(planner_inputs)
 
             
@@ -137,7 +140,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
 
         # save gif every 50 eps
-        if (self.episode_no-1) % 50==0 and (self.args.visualize or self.args.print_images) :
+        if (self.episode_no-1) % 10==0 and (self.args.visualize or self.args.print_images) :
             self._visualize_gif(map_img, action)
 
 
@@ -483,7 +486,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         return self.vis_image
 
     def _visualize_gif(self, map_img, action):
-        print("===================== gif save img {0}_{1}==========================".format(self.episode_no, self.timestep ))
+        # print("===================== gif save img {0}_{1}==========================".format(self.episode_no, self.timestep ))
         args = self.args
         dump_dir = "{}/dump/{}/".format(args.dump_location,
                                         args.exp_name)

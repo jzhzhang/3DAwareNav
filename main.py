@@ -666,49 +666,54 @@ def main():
         confidence_thres = args.sem_pred_lower_bound + nn.Sigmoid()(g_action[:,2]).cpu().numpy()*(1 - args.sem_pred_lower_bound)
         # import time 
         # t_s = time.time()
-        for e in range(num_scenes):
 
-            cat_pred_threshold[infos[e]['goal_cat_id']].append(confidence_thres[e])
-            timestep_threshold[infos[e]['timestep']] += confidence_thres[e]
-            timestep_count_threshold[infos[e]['timestep']]+=1
+        if args.stop_policy == "3D":
 
-        #     print("find potential point")
-            sample_points_tensor = gl_tree_list[e].find_object_goal_points(gl_tree_list[e].observation_window, goal_cat_id[e], confidence_thres[e])
+            for e in range(num_scenes):
 
-            if sample_points_tensor is not None:
-                sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
-                sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution 
-                sample_points_tensor = sample_points_tensor.astype(np.int32)
-                sample_points_tensor = sample_points_tensor[:,:2]
+                cat_pred_threshold[infos[e]['goal_cat_id']].append(confidence_thres[e])
+                timestep_threshold[infos[e]['timestep']] += confidence_thres[e]
+                timestep_count_threshold[infos[e]['timestep']]+=1
 
-                sample_points_tensor = sample_points_tensor[np.where((sample_points_tensor[:, 0]>=0) & (sample_points_tensor[:, 0]<local_w) & (sample_points_tensor[:, 1]>=0) & (sample_points_tensor[:, 1]<local_h))]
+                sample_points_tensor = gl_tree_list[e].find_object_goal_points(gl_tree_list[e].observation_window, goal_cat_id[e], confidence_thres[e])
 
+                if sample_points_tensor is not None:
+                    sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
+                    sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution 
+                    sample_points_tensor = sample_points_tensor.astype(np.int32)
+                    sample_points_tensor = sample_points_tensor[:,:2]
 
-
-            if sample_points_tensor is not None and sample_points_tensor.shape[0]>0:
-                goal_maps[e][sample_points_tensor[:,1], sample_points_tensor[:,0]] = 1
-                # print(goal_maps[e].shape)
-                # cv2.imwrite("rank_{0}_eps_{1}_step_{2}_mask.png".format(infos[e]['rank'], infos[e]['episode_no'], infos[e]["timestep"]), (local_map[e, 6, :, :]*255).cpu().numpy().astype(np.int32))
-                found_goal[e] = 1
-            else:
-                goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
-        # print(time.time() - t_s)
+                    sample_points_tensor = sample_points_tensor[np.where((sample_points_tensor[:, 0]>=0) & (sample_points_tensor[:, 0]<local_w) & (sample_points_tensor[:, 1]>=0) & (sample_points_tensor[:, 1]<local_h))]
 
 
-            # cn = infos[e]['goal_cat_id'] + 4
-            # if torch.any((local_map[e, cn, :, :] -  confidence_thres[e]) > 0. ):
-            #     cat_semantic_map = (local_map[e, cn, :, :] - confidence_thres[e]).cpu().numpy()
-            #     cat_semantic_scores = cat_semantic_map
-            #     cat_semantic_scores[cat_semantic_scores > 0] = 1.
-            #     cat_semantic_scores[cat_semantic_scores < 0] = 0.
 
-            #     goal_maps[e] = cat_semantic_scores
-            #     found_goal[e] = 1
+                if sample_points_tensor is not None and sample_points_tensor.shape[0]>0:
+                    goal_maps[e][sample_points_tensor[:,1], sample_points_tensor[:,0]] = 1
 
-                # print("score", confidence_thres)
-                # print("local_map", local_map[e, cn, :, :])
-                # print("cat_semantic_scores", cat_semantic_scores)
-                # print("cat_semantic_map", cat_semantic_map)
+                    found_goal[e] = 1
+                else:
+                    goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
+
+        if args.stop_policy == "2D":
+            for e in range(num_scenes):
+    
+                cat_pred_threshold[infos[e]['goal_cat_id']].append(confidence_thres[e])
+                timestep_threshold[infos[e]['timestep']] += confidence_thres[e]
+                timestep_count_threshold[infos[e]['timestep']]+=1
+
+                cn = infos[e]['goal_cat_id'] + 4
+                if torch.any((local_map[e, cn, :, :] -  confidence_thres[e]) > 0. ):
+                    cat_semantic_map = (local_map[e, cn, :, :] - confidence_thres[e]).cpu().numpy()
+                    cat_semantic_scores = cat_semantic_map
+                    cat_semantic_scores[cat_semantic_scores > 0] = 1.
+                    cat_semantic_scores[cat_semantic_scores < 0] = 0.
+
+                    goal_maps[e] = cat_semantic_scores
+                    found_goal[e] = 1
+                else:
+                    goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
+
+
         # ------------------------------------------------------------------
 
 
