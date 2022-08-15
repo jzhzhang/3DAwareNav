@@ -501,7 +501,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
             visualize_img_list.append(cv2.cvtColor(map_img,cv2.COLOR_BGR2RGB))
             if self.timestep == 499 or action == 0:
-                fn_gif = '{}/episodes/thread_{}/eps_{}/{}-{}-Vis-{}.gif'.format(
+                fn_gif = '{}/episodes/thread_{}/eps_{}/{}-{}-Vis-{}.mp4'.format(
                     dump_dir, self.rank, self.episode_no,
                     self.rank, self.episode_no, self.timestep)
                 imageio.mimsave(fn_gif, visualize_img_list)

@@ -511,6 +511,13 @@ class SemanticPredRedNet():
         img = torch.from_numpy(img).float().to(self.args.sem_gpu_id)
         depth = torch.from_numpy(depth).float().to(self.args.sem_gpu_id)
         output, mask = self.segmentation_model(img,depth)
+        print("mask", mask)
+        print("mask.shape", mask.shape)
+        
+        print("output", output)
+        print("output.shape", output.shape)
+
+
         #print("output shape is",output.shape)
         output = output[0]
 
@@ -524,6 +531,7 @@ class SemanticPredRedNet():
         semantic_input = np.zeros((img.shape[1], img.shape[2], len(habitat_labels) ))
         for i in range(0, 40):
             if i in fourty221.keys():
+
                 j = fourty221[i]
                 semantic_input[:, :, j] += (output[i]).cpu().numpy()
             else:
@@ -531,9 +539,9 @@ class SemanticPredRedNet():
 
 
 
-
+        print("==========semantic before",semantic_input[0,0,:])
         semantic_input = np.exp(semantic_input)/np.sum(np.exp(semantic_input), axis=2)[...,None]
-
+        print("==========semantic",semantic_input[0,0,:])
 
         #=================prob points================
         goal_cat_output = semantic_input[:, :, cat_goal] + 1e-5

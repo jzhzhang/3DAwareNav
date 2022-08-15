@@ -660,8 +660,8 @@ def main():
         found_goal = [0 for _ in range(num_scenes)]
         goal_maps = [np.zeros((local_w, local_h)) for _ in range(num_scenes)]
 
-        for e in range(num_scenes):
-            goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
+        # for e in range(num_scenes):
+        #     goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
 
         confidence_thres = args.sem_pred_lower_bound + nn.Sigmoid()(g_action[:,2]).cpu().numpy()*(1 - args.sem_pred_lower_bound)
         # import time 
