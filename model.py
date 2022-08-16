@@ -158,12 +158,6 @@ class Goal_Oriented_Semantic_Policy(NNBase):
             points_map[p, 0] = points_map_tmp
 
 
-
-
-
-
-
-
         # T2 = time.time()
         # print('point propagation run time: %s ms' % ((T2 - T1)*1000))
         points_map_cu = points_map.to(inputs_map.device)
@@ -491,7 +485,7 @@ class Semantic_Mapping(nn.Module):
             if world_view_sem.shape[0] <50:
                 continue
 
-            world_view_label = np.argmax(world_view_sem, axis=1)
+            world_view_label = np.argmax(world_view_sem, axis=1) # 
 
 
             world_view_rgb = obs[e, :3, :, :].permute(1,2,0).reshape(-1,3)[non_zero_row].cpu().numpy()
@@ -516,17 +510,10 @@ class Semantic_Mapping(nn.Module):
             sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
             sample_points_tensor[:, 2]  = sample_points_tensor[:, 2] - 0.88 * 100
             sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution
-            # sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / (args.map_resolution * args.global_downscaling)
-            # sample_points_tensor_tmp = sample_points_tensor[np.where((sample_points_tensor[:, 0]>=0) & (sample_points_tensor[:, 0]<local_w) & \
-            #     (sample_points_tensor[:, 1]>=0) & (sample_points_tensor[:, 1]<local_h))]
-            # sample_points_tensor_pos = sample_points_tensor_tmp[:, :2].long()
 
 
             observation_points[e] = sample_points_tensor.transpose(1, 0)
-            # sample_points_tensor_pos = sample_points_tensor_tmp[:, :2].long()
 
-
-            # print(time.time() - time_s)
 
 
             #======================= visualize =====================
