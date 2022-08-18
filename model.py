@@ -10,6 +10,7 @@ import envs.utils.depth_utils as du
 from utils.pointnet import PointNetEncoder
 from utils.ply import write_ply_xyz, write_ply_xyz_rgb
 from utils.img_save import save_semantic, save_KLdiv
+from arguments import get_args
 
 import os
 import time
@@ -52,10 +53,15 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         self.mid_size_y = int(self.in_size_y / 4.)
         self.out_size_x = int(self.in_size_x / 16.) 
         self.out_size_y = int(self.in_size_y / 16.)
+
+        self.layer_attached = 0
+        args = get_args()
+        if args.deactivate_klmap == False :
+            self.layer_attached += 1
         
         self.map_net = nn.Sequential(
             nn.MaxPool2d(2),
-            nn.Conv2d(num_sem_categories + 8 + 1, 32, 3, stride=1, padding=1),
+            nn.Conv2d(num_sem_categories + 8 + self.layer_attached, 32, 3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, stride=1, padding=1),
@@ -104,39 +110,42 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         self.train()
 
     def forward(self, inputs_map, input_points, rnn_hxs, masks, extras):
-        
-        # 3D points information
-        #   output: 1 * 32
-        #   !!! computing on CPU
-        points_map = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float)
-        for p in range(inputs_map.shape[0]) :
-            # filter the point
-            input_points_np = input_points[p].cpu().numpy()
-            input_points_np = input_points_np.transpose(1, 0)
-            input_points_np = input_points_np[np.where( (input_points_np[:, 0] >= 0) & (input_points_np[:, 0] < self.in_size_x) & \
-                (input_points_np[:, 1] >= 0) & (input_points_np[:, 1] < self.in_size_y) ) ]
-            input_points_fil = torch.from_numpy(input_points_np)
-            input_points_pos = torch.tensor(input_points_fil[:, :2], dtype=torch.int64)
-            
-            point_cnt = torch.count_nonzero(input_points_pos).item()
-            if point_cnt == 0 :
-                continue
 
-            # get the index
-            points_map_index = input_points_pos[:, 1] * int(self.in_size_y) + input_points_pos[:, 0]
-            
-            # get the value
-            points_map_value = input_points_fil[:, 10].reshape(input_points_fil.shape[0])
+        x = inputs_map
 
-            # scatter the value and normalization
-            points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
-            points_map_tmp_extend = torch.zeros([self.in_size_x * self.in_size_y - points_map_tmp.shape[0]], dtype=torch.float)
-            points_map_tmp = torch.cat((points_map_tmp, points_map_tmp_extend), 0).reshape(1, self.in_size_x, self.in_size_y)
+        args = get_args()
+        if args.deactivate_klmap == False :
+            # 3D points information
+            #   output: 1 * 32
+            #   !!! computing on CPU
+            points_map = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float)
+            for p in range(inputs_map.shape[0]) :
+                # filter the point
+                input_points_np = input_points[p].cpu().numpy()
+                input_points_np = input_points_np.transpose(1, 0)
+                input_points_np = input_points_np[np.where( (input_points_np[:, 0] >= 0) & (input_points_np[:, 0] < self.in_size_x) & \
+                    (input_points_np[:, 1] >= 0) & (input_points_np[:, 1] < self.in_size_y) ) ]
+                input_points_fil = torch.from_numpy(input_points_np)
+                input_points_pos = torch.tensor(input_points_fil[:, :2], dtype=torch.int64)
+                
+                point_cnt = torch.count_nonzero(input_points_pos).item()
+                if point_cnt == 0 :
+                    continue
 
-            points_map[p, 0] = points_map_tmp
+                # get the index
+                points_map_index = input_points_pos[:, 1] * int(self.in_size_y) + input_points_pos[:, 0]        
+                # get the value
+                points_map_value = input_points_fil[:, 10].reshape(input_points_fil.shape[0])
 
-        points_map_cu = points_map.to(inputs_map.device)
-        x = torch.cat((inputs_map, points_map_cu), 1)
+                # scatter the value and normalization
+                points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
+                points_map_tmp_extend = torch.zeros([self.in_size_x * self.in_size_y - points_map_tmp.shape[0]], dtype=torch.float)
+                points_map_tmp = torch.cat((points_map_tmp, points_map_tmp_extend), 0).reshape(1, self.in_size_x, self.in_size_y)
+
+                points_map[p, 0] = points_map_tmp
+
+            points_map_cu = points_map.to(inputs_map.device)
+            x = torch.cat((x, points_map_cu), 1)
         
         # 2D map encoder (base)
         x = self.map_net(x)
