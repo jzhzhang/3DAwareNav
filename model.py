@@ -110,68 +110,71 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         self.train()
 
     def forward(self, inputs_map, input_points, rnn_hxs, masks, extras):
+        T1 = time.time()
+        # batch size
+        bs = inputs_map.shape[0]
 
         x = inputs_map
+        points_map1 = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float).to(x.device)
 
+        # 3D points information
         args = get_args()
         if args.deactivate_klmap == False :
-            # 3D points information
-            #   output: 1 * 32
-            #   !!! computing on CPU
-            points_map = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float)
-            for p in range(inputs_map.shape[0]) :
+            points_map = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float).to(x.device)
+            for p in range(bs) :
                 # filter the point
-                input_points_np = input_points[p].cpu().numpy()
-                input_points_np = input_points_np.transpose(1, 0)
-                input_points_np = input_points_np[np.where( (input_points_np[:, 0] >= 0) & (input_points_np[:, 0] < self.in_size_x) & \
-                    (input_points_np[:, 1] >= 0) & (input_points_np[:, 1] < self.in_size_y) ) ]
-                input_points_fil = torch.from_numpy(input_points_np)
-                input_points_pos = torch.tensor(input_points_fil[:, :2], dtype=torch.int64)
+                input_points_ful = input_points[p].transpose(1, 0)
+                input_points_ful = input_points_ful[ torch.where( (input_points_ful[:, 0] >= 0) & \
+                    (input_points_ful[:, 0] < self.in_size_x) & (input_points_ful[:, 1] >= 0) & \
+                    (input_points_ful[:, 1] < self.in_size_y) )]
                 
-                point_cnt = torch.count_nonzero(input_points_pos).item()
+                # get the index
+                input_points_pos = input_points_ful[:, :2].long()
+                points_map_index = input_points_pos[:, 1] * int(self.in_size_y) + input_points_pos[:, 0]        
+                point_cnt = torch.count_nonzero(points_map_index).item()
                 if point_cnt == 0 :
                     continue
-
-                # get the index
-                points_map_index = input_points_pos[:, 1] * int(self.in_size_y) + input_points_pos[:, 0]        
+                
                 # get the value
-                points_map_value = input_points_fil[:, 10].reshape(input_points_fil.shape[0])
+                points_map_value = input_points_ful[:, 10]#.reshape(input_points_ful.shape[0])
 
                 # scatter the value and normalization
                 points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
-                points_map_tmp_extend = torch.zeros([self.in_size_x * self.in_size_y - points_map_tmp.shape[0]], dtype=torch.float)
+                points_map_tmp_extend = torch.zeros([self.in_size_x * self.in_size_y - points_map_tmp.shape[0]], \
+                    dtype=torch.float).to(points_map_tmp.device)
                 points_map_tmp = torch.cat((points_map_tmp, points_map_tmp_extend), 0).reshape(1, self.in_size_x, self.in_size_y)
 
                 points_map[p, 0] = points_map_tmp
-
-            points_map_cu = points_map.to(inputs_map.device)
-            x = torch.cat((x, points_map_cu), 1)
+            
+            x = torch.cat((x, points_map), 1)
+        
+        T2 = time.time()
+        time1 = (T2-T1)*1000
         
         # 2D map encoder (base)
         x = self.map_net(x)
-
+        
         # extra information
-        #   output: 1 * (8 * 3 = 24)
+        #   output: bs * (4 * 3 = 12)
         orientation_emb = self.orientation_emb(extras[:, 0])
         goal_emb = self.goal_emb(extras[:, 1])
         time_effe_emb = self.time_emb(extras[:, 2])
-
         extra_tot = torch.cat((orientation_emb, goal_emb, time_effe_emb), 1)
+        
         # concatenation
-    ### !!!
-        extra_tot = extra_tot.reshape([inputs_map.shape[0], 3 * 4, 1, 1 ])
-        extra_tot = extra_tot.expand([inputs_map.shape[0], 3 * 4, self.mid_size_x, self.mid_size_y ])
+        extra_tot = extra_tot.reshape([bs, 3 * 4, 1, 1 ])
+        extra_tot = extra_tot.expand([bs, 3 * 4, self.mid_size_x, self.mid_size_y ])
         x = torch.cat((x, extra_tot), 1)
 
         # policy net
         x = self.policy_net(x)
-        #print(x)
-        #print("learning========================================================")
 
         x = self.rnn_mlp1(x)
         if self.is_recurrent:
             x, rnn_hxs = self._forward_gru(x, rnn_hxs, masks)
         x = self.rnn_mlp2(x)
+
+        print("run time1: "+str(time1)+" ms")
         
         return self.critic_mlp(x).squeeze(-1), x, rnn_hxs
 
