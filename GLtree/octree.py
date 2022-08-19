@@ -1,4 +1,4 @@
-import  numpy as np
+import numpy as np
 from queue import Queue
 import time
 from GLtree.interval_tree import RedBlackTree, Node, BLACK, RED, NIL
@@ -6,6 +6,7 @@ import random
 from constants import color_palette_array, habitat_labels
 import pydensecrf.densecrf as dcrf
 from matplotlib import cm
+import math
 # from constants import
 
 # from utils.ply import
@@ -371,7 +372,9 @@ class GL_tree:
             node.seg_prob_fused = temp_fused
             node.label = np.argmax(node.seg_prob_fused)
 
-            node.kl_div = temp_kl_div_max
+            node.kl_div = 1. - math.exp( - temp_kl_div_max )
+
+            #print(node.kl_div)
 
 
     def find_object_goal_points(self, node_set, goal_obj_id, threshold):

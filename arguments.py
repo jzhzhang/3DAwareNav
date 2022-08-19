@@ -171,7 +171,7 @@ def get_args():
     parser.add_argument('--map_size_cm', type=int, default=4800)
     parser.add_argument('--map_point_size', type=int, default=4096) 
 
-    parser.add_argument('--checkpt', type=str, default="/home/jiazhaozhang/project/navigation/GoalNavigation/rednet_semmap_mp3d_tuned.pth",
+    parser.add_argument('--checkpt', type=str, default="weight/rednet_semmap_mp3d_tuned.pth",
                         help='path to rednet models')
 
 
@@ -201,74 +201,6 @@ def get_args():
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
-    # if args.cuda:
-    #     if args.auto_gpu_config:
-    #         num_gpus = torch.cuda.device_count()
-    #         if args.total_num_scenes != "auto":
-    #             args.total_num_scenes = int(args.total_num_scenes)
-    #         elif "objectnav_gibson" in args.task_config and \
-    #                 "train" in args.split:
-    #             args.total_num_scenes = 25
-    #         elif "objectnav_gibson" in args.task_config and \
-    #                 "val" in args.split:
-    #             args.total_num_scenes = 5
-    #         else:
-    #             assert False, "Unknown task config, please specify" + \
-    #                 " total_num_scenes"
-
-            # GPU Memory required for the SemExp model:
-            #       0.8 + 0.4 * args.total_num_scenes (GB)
-            # GPU Memory required per thread: 2.6 (GB)
-
-    #         min_memory_required = max(0.8 + 0.4 * args.total_num_scenes, 2.6)
-    #         # Automatically configure number of training threads based on
-    #         # number of GPUs available and GPU memory size
-    #         gpu_memory = 1000
-    #         for i in range(num_gpus):
-    #             gpu_memory = min(gpu_memory,
-    #                              torch.cuda.get_device_properties(
-    #                                  i).total_memory
-    #                              / 1024 / 1024 / 1024)
-    #             assert gpu_memory > min_memory_required, \
-    #                 """Insufficient GPU memory for GPU {}, gpu memory ({}GB)
-    #                 needs to be greater than {}GB""".format(
-    #                     i, gpu_memory, min_memory_required)
-
-    #         num_processes_per_gpu = int(gpu_memory / 2.6)
-    #         num_processes_on_first_gpu = \
-    #             int((gpu_memory - min_memory_required) / 2.6)
-
-    #         if args.eval:
-    #             max_threads = num_processes_per_gpu * (num_gpus - 1) \
-    #                 + num_processes_on_first_gpu
-    #             assert max_threads >= args.total_num_scenes, \
-    #                 """Insufficient GPU memory for evaluation"""
-
-    #         if num_gpus == 1:
-    #             args.num_processes_on_first_gpu = num_processes_on_first_gpu
-    #             args.num_processes_per_gpu = 0
-    #             args.num_processes = num_processes_on_first_gpu
-    #             assert args.num_processes > 0, "Insufficient GPU memory"
-    #         else:
-    #             num_threads = num_processes_per_gpu * (num_gpus - 1) \
-    #                 + num_processes_on_first_gpu
-    #             num_threads = min(num_threads, args.total_num_scenes)
-    #             args.num_processes_per_gpu = num_processes_per_gpu
-    #             args.num_processes_on_first_gpu = max(
-    #                 0,
-    #                 num_threads - args.num_processes_per_gpu * (num_gpus - 1))
-    #             args.num_processes = num_threads
-
-    #         args.sim_gpu_id = 0
-
-    #         print("Auto GPU config:")
-    #         print("Number of processes: {}".format(args.num_processes))
-    #         print("Number of processes on GPU 0: {}".format(
-    #             args.num_processes_on_first_gpu))
-    #         print("Number of processes per GPU: {}".format(
-    #             args.num_processes_per_gpu))
-    # else:
-    #     args.sem_gpu_id = 1
 
     if args.num_mini_batch == "auto":
         args.num_mini_batch = max(args.num_processes // 2, 1)

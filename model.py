@@ -52,13 +52,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         self.mid_size_y = int(self.in_size_y / 4.)
         self.out_size_x = int(self.in_size_x / 16.) 
         self.out_size_y = int(self.in_size_y / 16.)
-
-        # self.point_entropy_Encoder = PointNetEncoder(global_feat=True,  channel = 4)
-        # self.point_goal_Encoder = PointNetEncoder(global_feat=True,  channel = 4)
-
-        # self.point_entropy_Encoder = PointNetEncoder_STN(global_feat=True,  channel = 4)
-        # self.point_goal_Encoder = PointNetEncoder_STN(global_feat=True,  channel = 4)
-
+        
         self.map_net = nn.Sequential(
             nn.MaxPool2d(2),
             nn.Conv2d(num_sem_categories + 8 + 1, 32, 3, stride=1, padding=1),
@@ -73,15 +67,12 @@ class Goal_Oriented_Semantic_Policy(NNBase):
             nn.Conv2d(64, 32, 3, stride=1, padding=1),
             nn.ReLU()
         )
+        
+        self.orientation_emb = nn.Embedding(72, 4)
+        self.goal_emb = nn.Embedding(num_sem_categories, 4)
+        self.time_emb = nn.Embedding(500, 4)
 
-        #self.point_Encoder = PointNetEncoder(global_feat=True,  channel=11)
-        #self.points_compress = nn.Linear(1024, 32)
-
-        self.orientation_emb = nn.Embedding(72, 8)
-        self.goal_emb = nn.Embedding(num_sem_categories, 8)
-        self.time_emb = nn.Embedding(500, 8)
-
-        self.input_chan = 32 + 3 * 8  # 56
+        self.input_chan = 32 + 3 * 4  # 56
         self.policy_net = nn.Sequential(
             nn.MaxPool2d(2),
             nn.Conv2d(self.input_chan, 128, 3, stride=1, padding=1),
@@ -117,20 +108,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         # 3D points information
         #   output: 1 * 32
         #   !!! computing on CPU
-
-        # T1 = time.time()
-    ### !!! 
-        '''
-        with open("./tmp/points/aaa.txt", "a") as external_file:
-            torch.set_printoptions(profile="full")
-            print(points_map_index, file=external_file)
-            print(points_map_index_tmp, file=external_file)
-            torch.set_printoptions(profile="default") 
-            external_file.close()
-        '''
         points_map = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float)
-
-            
         for p in range(inputs_map.shape[0]) :
             # filter the point
             input_points_np = input_points[p].cpu().numpy()
@@ -157,42 +135,35 @@ class Goal_Oriented_Semantic_Policy(NNBase):
 
             points_map[p, 0] = points_map_tmp
 
-
-        # T2 = time.time()
-        # print('point propagation run time: %s ms' % ((T2 - T1)*1000))
         points_map_cu = points_map.to(inputs_map.device)
         x = torch.cat((inputs_map, points_map_cu), 1)
         
         # 2D map encoder (base)
         x = self.map_net(x)
-       
-        # 3D points information backup
-        #   output: 1 * 32
-        # points_x = self.point_Encoder(input_points)
-        # points_x = self.points_compress(points_x)
 
         # extra information
         #   output: 1 * (8 * 3 = 24)
         orientation_emb = self.orientation_emb(extras[:, 0])
         goal_emb = self.goal_emb(extras[:, 1])
         time_effe_emb = self.time_emb(extras[:, 2])
+
         extra_tot = torch.cat((orientation_emb, goal_emb, time_effe_emb), 1)
         # concatenation
     ### !!!
-        extra_tot = extra_tot.reshape([inputs_map.shape[0], 3 * 8, 1, 1 ])
-        extra_tot = extra_tot.expand([inputs_map.shape[0], 3 * 8, self.mid_size_x, self.mid_size_y ])
+        extra_tot = extra_tot.reshape([inputs_map.shape[0], 3 * 4, 1, 1 ])
+        extra_tot = extra_tot.expand([inputs_map.shape[0], 3 * 4, self.mid_size_x, self.mid_size_y ])
         x = torch.cat((x, extra_tot), 1)
 
         # policy net
         x = self.policy_net(x)
         #print(x)
         #print("learning========================================================")
-        
+
         x = self.rnn_mlp1(x)
         if self.is_recurrent:
             x, rnn_hxs = self._forward_gru(x, rnn_hxs, masks)
         x = self.rnn_mlp2(x)
-
+        
         return self.critic_mlp(x).squeeze(-1), x, rnn_hxs
 
 
@@ -241,7 +212,12 @@ class RL_Policy(nn.Module):
     def act(self, inputs_map, inputs_points, rnn_hxs, masks, extras=None, deterministic=False):
 
         value, actor_features, rnn_hxs = self(inputs_map, inputs_points, rnn_hxs, masks, extras)
+        #torch.set_printoptions(profile='full')
+        #print("actor:", actor_features)
+        #print(actor_features.shape)
+        #torch.set_printoptions(profile='default')
         dist = self.dist(actor_features)
+        #print(type(dist))
 
         if deterministic:
             action = dist.mode()
