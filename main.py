@@ -157,7 +157,7 @@ def main():
     local_h = int(full_h / args.global_downscaling)
 
     # Initializing full and local map
-    points_channel_num = 11
+    points_channel_num = 12
     full_map = torch.zeros(num_scenes, nc, full_w, full_h).float().to(device)
     local_map = torch.zeros(num_scenes, nc, local_w,
                             local_h).float().to(device)
