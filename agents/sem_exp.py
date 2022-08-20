@@ -18,6 +18,28 @@ import imageio
 
 visualize_img_list = []
 
+class UnTrapHelper:
+    def __init__(self):
+        self.total_id = 0
+        self.epi_id = 0
+
+    def reset(self):
+        self.total_id += 1
+        self.epi_id = 0
+
+    def get_action(self):
+        self.epi_id += 1
+        if self.epi_id == 1:
+            if self.total_id % 2 == 0:
+                return 2
+            else:
+                return 3 #3
+        else:
+            if self.total_id % 2 == 0:
+                return 3 #3
+            else:
+                return 2
+
 class Sem_Exp_Env_Agent(ObjectGoal_Env):
     """The Sem_Exp environment agent class. A seperate Sem_Exp_Env_Agent class
     object is used for each environment thread.
@@ -60,6 +82,9 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         self.last_action = None
         self.count_forward_actions = None
 
+        self.untrap = UnTrapHelper()
+        self.block_threshold = 3
+
         if args.visualize or args.print_images:
             self.legend = cv2.imread('docs/legend.png')
             self.vis_image = None
@@ -91,6 +116,11 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         self.info['timestep'] = self.timestep
         self.info['episode_no'] = self.episode_no
         self.info['rank'] = self.rank
+
+        self.block_threshold = 3
+        self.prev_blocked = 0
+        self._previous_action = -1
+        self.untrap = UnTrapHelper()
 
         return obs, info
 
@@ -130,7 +160,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         action = self._plan(planner_inputs)
         # print("action: ", action)
 
-        if (self.episode_no-1) % 3==0 and (self.args.visualize or self.args.print_images) or (self.episode_no-1) % 10==0 and (self.args.visualize or self.args.print_images):
+        if (self.episode_no-1) % 3==0 and (self.args.visualize or self.args.print_images) or (self.episode_no-1) % 3==0 and (self.args.visualize or self.args.print_images):
             map_img = self._visualize_map(planner_inputs)
 
             
@@ -140,7 +170,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
 
         # save gif every 50 eps
-        if (self.episode_no-1) % 10==0 and (self.args.visualize or self.args.print_images) :
+        if (self.episode_no-1) % 3==0 and (self.args.visualize or self.args.print_images) :
             self._visualize_gif(map_img, action)
 
 
@@ -247,6 +277,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
             dist = pu.get_l2_distance(x1, x2, y1, y2)
             if dist < args.collision_threshold:  # Collision
+                self.prev_blocked += 1
                 width = self.col_width
                 for i in range(length):
                     for j in range(width):
@@ -262,6 +293,10 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
                         [r, c] = pu.threshold_poses([r, c],
                                                     self.collision_map.shape)
                         self.collision_map[r, c] = 1
+            else:
+                if self.prev_blocked >= self.block_threshold:
+                    self.untrap.reset()
+                self.prev_blocked = 0
 
         stg, stop = self._get_stg(map_pred, start, np.copy(goal),
                                   planning_window)
@@ -287,6 +322,15 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
                 action = 2  # Left
             else:
                 action = 1  # Forward
+
+        if self.args.deactivate_traphelper == False:
+            if self.prev_blocked >= self.block_threshold:
+                if self._previous_action == 1:
+                    action = self.untrap.get_action()
+                    # print("trap helper begins!")
+                else:
+                    action = 1
+        self._previous_action = action
 
         return action
 
