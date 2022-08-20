@@ -58,6 +58,8 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         args = get_args()
         if args.deactivate_klmap == False :
             self.layer_attached += 1
+        if args.deactivate_entropymap == False :
+            self.layer_attached += 1
         
         self.map_net = nn.Sequential(
             nn.MaxPool2d(2),
@@ -110,15 +112,15 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         self.train()
 
     def forward(self, inputs_map, input_points, rnn_hxs, masks, extras):
-        T1 = time.time()
+        # T1 = time.time()
         # batch size
         bs = inputs_map.shape[0]
 
         x = inputs_map
-        points_map1 = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float).to(x.device)
 
         # 3D points information
         args = get_args()
+        # KL_Divergency Map
         if args.deactivate_klmap == False :
             points_map = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float).to(x.device)
             for p in range(bs) :
@@ -136,7 +138,36 @@ class Goal_Oriented_Semantic_Policy(NNBase):
                     continue
                 
                 # get the value
-                points_map_value = input_points_ful[:, 10]#.reshape(input_points_ful.shape[0])
+                points_map_value = input_points_ful[:, 10].clamp(max=1.0)#.reshape(input_points_ful.shape[0])
+
+                # scatter the value and normalization
+                points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
+                points_map_tmp_extend = torch.zeros([self.in_size_x * self.in_size_y - points_map_tmp.shape[0]], \
+                    dtype=torch.float).to(points_map_tmp.device)
+                points_map_tmp = torch.cat((points_map_tmp, points_map_tmp_extend), 0).reshape(1, self.in_size_x, self.in_size_y)
+
+                points_map[p, 0] = points_map_tmp
+            
+            x = torch.cat((x, points_map), 1)
+        # Entropy Map
+        if args.deactivate_entropymap == False :
+            points_map = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float).to(x.device)
+            for p in range(bs) :
+                # filter the point
+                input_points_ful = input_points[p].transpose(1, 0)
+                input_points_ful = input_points_ful[ torch.where( (input_points_ful[:, 0] >= 0) & \
+                    (input_points_ful[:, 0] < self.in_size_x) & (input_points_ful[:, 1] >= 0) & \
+                    (input_points_ful[:, 1] < self.in_size_y) )]
+                
+                # get the index
+                input_points_pos = input_points_ful[:, :2].long()
+                points_map_index = input_points_pos[:, 1] * int(self.in_size_y) + input_points_pos[:, 0]        
+                point_cnt = torch.count_nonzero(points_map_index).item()
+                if point_cnt == 0 :
+                    continue
+                
+                # get the value
+                points_map_value = input_points_ful[:, 11]#.reshape(input_points_ful.shape[0])
 
                 # scatter the value and normalization
                 points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
@@ -148,8 +179,9 @@ class Goal_Oriented_Semantic_Policy(NNBase):
             
             x = torch.cat((x, points_map), 1)
         
-        T2 = time.time()
-        time1 = (T2-T1)*1000
+        # T2 = time.time()
+        # time1 = (T2-T1)*1000
+        # print("run time1: "+str(time1)+" ms")
         
         # 2D map encoder (base)
         x = self.map_net(x)
@@ -173,8 +205,6 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         if self.is_recurrent:
             x, rnn_hxs = self._forward_gru(x, rnn_hxs, masks)
         x = self.rnn_mlp2(x)
-
-        print("run time1: "+str(time1)+" ms")
         
         return self.critic_mlp(x).squeeze(-1), x, rnn_hxs
 
@@ -498,7 +528,6 @@ class Semantic_Mapping(nn.Module):
             sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
             sample_points_tensor[:, 2]  = sample_points_tensor[:, 2] - 0.88 * 100
             sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution
-
 
             observation_points[e] = sample_points_tensor.transpose(1, 0)
 

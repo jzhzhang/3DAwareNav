@@ -42,8 +42,10 @@ def get_args():
 						help="""2d_backbone  maskrcnn/rednet""")
 	parser.add_argument("--stop_policy", type=str, default="2D",
 						help="""stop policy 2D/3D""")
-	parser.add_argument('--deactivate_klmap',  action='store_true', default=False,
-						help="""deactivate KLmap True/False""")
+	parser.add_argument('--deactivate_klmap', action='store_true', default=False, 
+						help="""deactivate KL divergency map True/False""")
+	parser.add_argument('--deactivate_entropymap', action='store_true', default=False, 
+						help="""deactivate entropy map True/False""")
 
 	# Logging, loading models, visualization
 	parser.add_argument('--log_interval', type=int, default=10,
