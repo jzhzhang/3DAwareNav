@@ -296,6 +296,7 @@ def main():
     g_action_space = gym.spaces.Box(low=0.0, high=0.99,
                                     shape=(3,), dtype=np.float32)
 
+
     # Global policy recurrent layer size
     g_hidden_size = args.global_hidden_size
 
