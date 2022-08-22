@@ -46,6 +46,8 @@ def get_args():
 						help="""deactivate KL divergency map True/False""")
 	parser.add_argument('--deactivate_entropymap', action='store_true', default=False, 
 						help="""deactivate entropy map True/False""")
+	parser.add_argument('--deactivate_traphelper', action='store_true', default=False, 
+						help="""deactivate trap helper True/False""")
 
 	# Logging, loading models, visualization
 	parser.add_argument('--log_interval', type=int, default=10,
