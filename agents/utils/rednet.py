@@ -29,7 +29,7 @@ from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.utils.visualizer import ColorMode, Visualizer
 import detectron2.data.transforms as T
 
-from constants import coco_categories_mapping, fourty221, habitat_labels
+from constants import coco_categories_mapping, get_fourty_dict, mp3d_habitat_labels, hm3d_habitat_labels
 
 
 # Resnet model urls
@@ -532,12 +532,17 @@ class SemanticPredRedNet():
         output = torch.nn.functional.softmax(output, dim=0).permute(1,2,0).cpu().numpy()
         output[np.where(np.max(output, axis=-1) < self.threshold)] = 0
         
-        semantic_input = np.zeros((img.shape[1], img.shape[2], len(habitat_labels) ))
-        
-        for i in range(0, 40):
-            if i in fourty221.keys():
+        if args.dataset == "mp3d":
+            semantic_input = np.zeros((img.shape[1], img.shape[2], len(mp3d_habitat_labels) ))
+        elif args.dataset == "hm3d":
+            semantic_input = np.zeros((img.shape[1], img.shape[2], len(hm3d_habitat_labels) ))
 
-                j = fourty221[i]
+
+        fourty_dict = get_fourty_dict(args.dataset)
+
+        for i in range(0, 40):
+            if i in fourty_dict.keys():
+                j = fourty_dict[i]
                 semantic_input[:, :, j] += output[:,:,i]
 
         semantic_input[:,:,-1] = 1 - np.sum(semantic_input[:,:,:-1], axis=-1)
