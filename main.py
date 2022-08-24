@@ -319,6 +319,9 @@ def main():
     # g_action_space = gym.spaces.MultiDiscrete([8, 10])
 
 
+
+
+
     # Global policy recurrent layer size
     g_hidden_size = args.global_hidden_size
 
@@ -431,16 +434,16 @@ def main():
 
 
 
-    print("cpu_actiongs!!!!!!!!!", g_action)
+    # print("cpu_actiongs!!!!!!!!!", g_action)
 
     # cpu_actions = nn.Sigmoid()(g_action[: ,:2]).cpu().numpy()
 
     cpu_actions = g_action.cpu().numpy()
 
-    global_goals = [global_action_selection_list[action]
+    global_goals = [global_action_selection_list[cpu_actions[action]]
                     for action in range(num_scenes)]
 
-    print("global_goals", global_goals)
+    # print("global_goals", global_goals)
 
 
 
@@ -680,7 +683,7 @@ def main():
 
             cpu_actions = g_action.cpu().numpy()
 
-            global_goals = [global_action_selection_list[action]
+            global_goals = [global_action_selection_list[cpu_actions[action]]
                             for action in range(num_scenes)]
 
             # cpu_actions = nn.Sigmoid()(g_action[:,:2]).cpu().numpy()
@@ -688,7 +691,7 @@ def main():
             #                  int(action[1] * local_h)]
             #                 for action in cpu_actions]
 
-            print("cpu_actiongs!!!!!!!!!", global_goals)
+            # print("cpu_actiongs!!!!!!!!!", global_goals)
 
 
 
