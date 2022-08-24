@@ -59,6 +59,12 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
         # initialize semantic segmentation prediction model
         # print()
+
+        # allocate multiple gpus for sem models
+        sem_gpu_visible_devices = [int(str_gpu_id) for str_gpu_id in args.sem_gpu_id_list.split(",")]
+        sem_gpu_id = sem_gpu_visible_devices[int(int(self.rank)%len(sem_gpu_visible_devices))] 
+        args.sem_gpu_id = "cuda:" + str(sem_gpu_id)
+        
         if args.sem_gpu_id == -1:
             args.sem_gpu_id = config_env.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID
 
