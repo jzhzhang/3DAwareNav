@@ -138,7 +138,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
                     continue
                 
                 # get the value
-                points_map_value = input_points_ful[:, 10].clamp(max=1.0)#.reshape(input_points_ful.shape[0])
+                points_map_value = input_points_ful[:, -2].clamp(max=1.0)#.reshape(input_points_ful.shape[0])
 
                 # scatter the value and normalization
                 points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
@@ -167,7 +167,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
                     continue
                 
                 # get the value
-                points_map_value = input_points_ful[:, 11]#.reshape(input_points_ful.shape[0])
+                points_map_value = input_points_ful[:, -1]#.reshape(input_points_ful.shape[0])
 
                 # scatter the value and normalization
                 points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
@@ -425,6 +425,9 @@ class Semantic_Mapping(nn.Module):
         y2 = y1 + self.vision_range
         agent_view[:, 0:1, y1:y2, x1:x2] = fp_map_pred
         agent_view[:, 1:2, y1:y2, x1:x2] = fp_exp_pred
+
+
+        
         agent_view[:, 4:, y1:y2, x1:x2] = torch.clamp(
             agent_height_proj[:, 1:, :, :] / self.cat_pred_threshold,
             min=0.0, max=1.0)

@@ -335,19 +335,19 @@ hm3d_habitat_labels = {
             'toilet':3, # in resnet
             'tv_monitor':4, # in resnet
             'sofa':5,
-            'cabinet':6, #background
+            'background':6, #background
 }
 
-habitat_labels = {
-            # 'background': 0,
-            'chair': 0, #g
-            'bed': 1, #g
-            'plant':2, #b
-            'toilet':3, # in resnet
-            'tv_monitor':4, # in resnet
-            'sofa':5,
-            'cabinet':6, #background
-}
+# habitat_labels = {
+#             # 'background': 0,
+#             'chair': 0, #g
+#             'bed': 1, #g
+#             'plant':2, #b
+#             'toilet':3, # in resnet
+#             'tv_monitor':4, # in resnet
+#             'sofa':5,
+#             'cabinet':6, #background
+# }
 
 
 # fourty221_ori = {}
@@ -362,6 +362,12 @@ habitat_labels = {
 # print(len(fourty221_ori))
 # fourty221 = copy.deepcopy(fourty221_ori)
 
+
+def get_habitat_labels(data_name):
+    if data_name =="hm3d":
+        return hm3d_habitat_labels
+    elif data_name =="mp3d":
+        return mp3d_habitat_labels
 
 def get_fourty_dict(data_name):
     fourty2_dict = {}

@@ -175,7 +175,8 @@ def main():
 
 
     # Initializing full and local map
-    points_channel_num = 12
+    # points_channel_num = 12
+    points_channel_num = 3 + args.num_sem_categories + 1 + 1
     full_map = torch.zeros(num_scenes, nc, full_w, full_h).float().to(device)
     local_map = torch.zeros(num_scenes, nc, local_w,
                             local_h).float().to(device)
@@ -451,8 +452,6 @@ def main():
     #                 for x, y in global_goals]
 
     goal_maps = [np.zeros((local_w, local_h)) for _ in range(num_scenes)]
-
-
 
 
     print("global_goals", global_goals)

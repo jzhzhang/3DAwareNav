@@ -478,7 +478,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
         sem_map += 5
 
-        no_cat_mask = sem_map == 6 + 4 + 1
+        no_cat_mask = sem_map == self.args.num_sem_categories + 4 + 1
         map_mask = np.rint(map_pred) == 1
         exp_mask = np.rint(exp_pred) == 1
         vis_mask = self.visited_vis[gx1:gx2, gy1:gy2] == 1

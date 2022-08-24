@@ -3,63 +3,13 @@ from queue import Queue
 import time
 from GLtree.interval_tree import RedBlackTree, Node, BLACK, RED, NIL
 import random
-from constants import color_palette_array, habitat_labels
+from constants import color_palette_array
 import pydensecrf.densecrf as dcrf
 from matplotlib import cm
 import math
 # from constants import
 
 # from utils.ply import
-
-
-# class point3D:
-#     def __init__(self, point_coor, feature_2d, max_octree_threshold):
-#         self.point_coor=point_coor
-#         self.feature_fuse=feature_2d
-#         self.branch_array=[None, None, None, None, None, None, None, None]
-#         self.branch_distance=np.full((8),max_octree_threshold)
-#         self.result_feature=np.zeros((128))
-#         self.pred_result=-1
-#         self.frame_id=0
-#         self.scan_times=0
-#         self.uncertainty=1
-
-
-   
-#     def findNearPoint(self, near_node_num, max_node):
-
-#         neighbor_2dfeature=np.zeros((max_node+1,128))
-#         neighbor_node=np.zeros((max_node+1,3))
-#         count = 0
-#         neighbor_node[count, :] = 0
-#         neighbor_2dfeature[count] = self.feature_fuse
-#         find_queue = Queue()
-#         count += 1
-
-#         for i,node in enumerate(self.branch_array):
-#             if node is not None:
-#                 neighbor_node[count, :] =  node.point_coor - self.point_coor
-#                 neighbor_2dfeature[count] = node.feature_fuse
-#                 if node.branch_array[i] is not None:
-#                     find_queue.put((i,node.branch_array[i])) 
-#                 count += 1
-
-#         while not find_queue.empty() and count<max_node+1:
-#             index_node=find_queue.get()
-#             node=index_node[1]
-#             index=index_node[0]
-#             neighbor_node[count, :] =  node.point_coor - self.point_coor
-#             neighbor_2dfeature[count] = node.feature_fuse
-#             if node.branch_array[index] is not None:
-#                 find_queue.put((index,node.branch_array[index]))
-#             count+=1
-        
-#         if count>=near_node_num:
-#             sample=np.random.choice(count,near_node_num,replace=False)
-#         else:
-#             sample=np.random.choice(count,near_node_num,replace=True)
-#         sample[0] = 0
-#         return neighbor_2dfeature[sample,:].T, neighbor_node[sample,:].T, count
 
 '''
 Liu Dai & Fanpeng Meng update in 23 July 2022
@@ -72,7 +22,7 @@ Liu Dai & Fanpeng Meng update in 23 July 2022
 4. keyframe for seg?
 '''
 class point3D:
-    def __init__(self, point_coor, point_color, num_sem_categories = len(habitat_labels)):
+    def __init__(self, point_coor, point_color, num_sem_categories):
         self.point_coor = point_coor
         self.point_color = point_color
         self.point_seg_list = []
@@ -154,6 +104,8 @@ class GL_tree:
         self.z_rb_tree = RedBlackTree(opt.interval_size)
 
         self.scene_node = set()
+
+        self.num_categories = len(opt.num_sem_categories)
 
         self.observation_window = set()
         self.observation_window_size = opt.observation_window_size
@@ -242,7 +194,7 @@ class GL_tree:
                         
 
             if not is_find_nearest:
-                new_3dpoint = point3D(points[p, :], points_color[p, :])
+                new_3dpoint = point3D(points[p, :], points_color[p, :], self.num_categories)
                 new_3dpoint.add_point_seg(point_seg[p, :])
                 new_3dpoint.frame_id = frame_index
                 if activate_3d is False :
@@ -283,9 +235,9 @@ class GL_tree:
 
         if len(per_image_node_set) > 0 :
 
-            d = dcrf.DenseCRF(len(per_image_node_set), len(habitat_labels))
+            d = dcrf.DenseCRF(len(per_image_node_set), self.num_categories)
             
-            U = np.zeros((len(habitat_labels),len(per_image_node_set)), dtype=np.float32) # 7*N
+            U = np.zeros((self.num_categories, len(per_image_node_set)), dtype=np.float32) # 7*N
             xyz_pc = np.zeros((len(per_image_node_set),3), dtype=np.float32) # N*3
             feat_pc = np.zeros((len(per_image_node_set),3), dtype=np.float32) # N*3
 
@@ -346,12 +298,12 @@ class GL_tree:
             for node in remove_node_list:
                 self.observation_window.remove(node)
 
-        observation_points = np.zeros((4096, 12)) #x,y,z, prob(7), kl_divergency, entropy
+        observation_points = np.zeros((4096, 3+self.num_categories+1+1)) #x,y,z, prob(7), kl_divergency, entropy
         for i, node in enumerate(self.observation_window):
             observation_points[i,:3] = node.point_coor
-            observation_points[i,3:10] = node.seg_prob_fused
-            observation_points[i,10] = node.kl_div
-            observation_points[i,11] = node.entropy
+            observation_points[i,3:3+self.num_categories] = node.seg_prob_fused
+            observation_points[i,-2] = node.kl_div
+            observation_points[i,-1] = node.entropy
             # print(i,node.kl_div)
 
         return observation_points
@@ -401,7 +353,7 @@ class GL_tree:
             if node.label != goal_obj_id or node.seg_prob_fused[goal_obj_id] < threshold:
                 continue
             count = 0
-            for i in range(len(habitat_labels)):
+            for i in range(self.num_categories):
                 if node.branch_array[i] is not None and node.branch_array[i].label == goal_obj_id:
                     count += 1 
             if count >2:

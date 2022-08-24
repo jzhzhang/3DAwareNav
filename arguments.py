@@ -105,7 +105,7 @@ def get_args():
 	#					 default="tasks/challenge_objectnav2021.local.rgbd.yaml",
 	#					 help="path to config yaml containing task information")
 
-	parser.add_argument('--num_sem_categories', type=float, default=7)
+	parser.add_argument('--num_sem_categories', type=int, default=7)
 	# parser.add_argument('--sem_pred_prob_thr', type=float, default=0.4,
 	# 					help="Semantic prediction confidence threshold")
 	# parser.add_argument('--sem_pred_lower_bound', type=float, default=0.4,
