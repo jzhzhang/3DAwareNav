@@ -32,6 +32,11 @@ def get_args():
 						help='disables CUDA training')
 	parser.add_argument("--sim_gpu_id", type=str, default="1,1,1,2,2,2",
 						help="gpu id on which scenes are loaded")
+	
+	parser.add_argument("--sem_gpu_id_list", type=str, default="0,1",
+                        help="""gpu id list for semantic models,
+                                -1: same as sim gpu, -2: cpu""")
+
 	parser.add_argument("--sem_gpu_id", type=str, default="cuda:2",
 						help="""gpu id for semantic model,
 								-1: same as sim gpu, -2: cpu""")
