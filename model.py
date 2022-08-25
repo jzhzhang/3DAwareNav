@@ -49,8 +49,6 @@ class Goal_Oriented_Semantic_Policy(NNBase):
 
         self.in_size_x = input_map_shape[1]
         self.in_size_y = input_map_shape[2]
-        self.mid_size_x = int(self.in_size_x / 4.) 
-        self.mid_size_y = int(self.in_size_y / 4.)
         self.out_size_x = int(self.in_size_x / 16.) 
         self.out_size_y = int(self.in_size_y / 16.)
 
@@ -61,52 +59,49 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         if args.deactivate_entropymap == False :
             self.layer_attached += 1
         
-        self.map_net = nn.Sequential(
+        self.policy_net = nn.Sequential(
             nn.MaxPool2d(2),
             nn.Conv2d(num_sem_categories + 8 + self.layer_attached, 32, 3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, stride=1, padding=1),
             nn.ReLU(),
-            nn.Conv2d(64, 128, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(128, 64, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(64, 32, 3, stride=1, padding=1),
-            nn.ReLU()
-        )
-        
-        self.orientation_emb = nn.Embedding(72, 4)
-        self.goal_emb = nn.Embedding(num_sem_categories, 4)
-        self.time_emb = nn.Embedding(500, 4)
-
-        self.input_chan = 32 + 3 * 4  # 56
-        self.policy_net = nn.Sequential(
             nn.MaxPool2d(2),
-            nn.Conv2d(self.input_chan, 128, 3, stride=1, padding=1),
+            nn.Conv2d(64, 128, 3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2),
             nn.Conv2d(128, 256, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(256, 512, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(512, 256, 3, stride=1, padding=1),
             nn.ReLU(),
             nn.Conv2d(256, 128, 3, stride=1, padding=1),
             nn.ReLU(),
             nn.Conv2d(128, 64, 3, stride=1, padding=1),
             nn.ReLU(),
+            nn.Conv2d(64, 32, 3, stride=1, padding=1),
+            nn.ReLU(),
             Flatten()
         )
 
         self.rnn_mlp1 = nn.Sequential(
-            nn.Linear(self.out_size_x * self.out_size_y * 64, hidden_size),
+            nn.Linear(self.out_size_x * self.out_size_y * 32, hidden_size),
             nn.ReLU()
         )
         self.rnn_mlp2 = nn.Sequential(
             nn.Linear(hidden_size, 256),
             nn.ReLU()
         )
+
+        self.emb_mlp1 = nn.Sequential(
+            nn.Linear(256, 64),
+            nn.ReLU()
+        )
+        self.emb_mlp2 = nn.Sequential(
+            nn.Linear(64 + 24 , 256),
+            nn.ReLU()
+        )
+        self.orientation_emb = nn.Embedding(72, 8)
+        self.goal_emb = nn.Embedding(num_sem_categories, 8)
+        self.time_emb = nn.Embedding(500, 8)
+
         self.critic_mlp = nn.Linear(256, 1)
 
         self.train()
@@ -120,6 +115,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
 
         # 3D points information
         args = get_args()
+
         # KL_Divergency Map
         if args.deactivate_klmap == False :
             points_map = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float).to(x.device)
@@ -149,6 +145,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
                 points_map[p, 0] = points_map_tmp
             
             x = torch.cat((x, points_map), 1)
+        
         # Entropy Map
         if args.deactivate_entropymap == False :
             points_map = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float).to(x.device)
@@ -182,29 +179,27 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         # T2 = time.time()
         # time1 = (T2-T1)*1000
         # print("run time1: "+str(time1)+" ms")
-        
-        # 2D map encoder (base)
-        x = self.map_net(x)
-        
-        # extra information
-        #   output: bs * (4 * 3 = 12)
-        orientation_emb = self.orientation_emb(extras[:, 0])
-        goal_emb = self.goal_emb(extras[:, 1])
-        time_effe_emb = self.time_emb(extras[:, 2])
-        extra_tot = torch.cat((orientation_emb, goal_emb, time_effe_emb), 1)
-        
-        # concatenation
-        extra_tot = extra_tot.reshape([bs, 3 * 4, 1, 1 ])
-        extra_tot = extra_tot.expand([bs, 3 * 4, self.mid_size_x, self.mid_size_y ])
-        x = torch.cat((x, extra_tot), 1)
 
         # policy net
         x = self.policy_net(x)
 
+        # RNN module (deactive)
         x = self.rnn_mlp1(x)
         if self.is_recurrent:
             x, rnn_hxs = self._forward_gru(x, rnn_hxs, masks)
         x = self.rnn_mlp2(x)
+        
+        # extra information embedding
+        #   output: bs * (4 * 3 = 12)
+        x = self.emb_mlp1(x)
+
+        orientation_emb = self.orientation_emb(extras[:, 0])
+        goal_emb = self.goal_emb(extras[:, 1])
+        time_effe_emb = self.time_emb(extras[:, 2])
+        extra_tot = torch.cat((orientation_emb, goal_emb, time_effe_emb), 1)
+        x = torch.cat((x, extra_tot), 1)
+
+        x = self.emb_mlp2(x)
         
         return self.critic_mlp(x).squeeze(-1), x, rnn_hxs
 
