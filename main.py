@@ -1,3 +1,4 @@
+from cgi import print_directory
 import tensorflow
 from collections import deque, defaultdict
 import os
@@ -24,6 +25,8 @@ import matplotlib.pyplot as plt
 from GLtree.interval_tree import RedBlackTree, Node, BLACK, RED, NIL
 # from GLtree.octree_point import point3D
 from GLtree.octree import GL_tree
+
+
 
 
 
@@ -68,6 +71,10 @@ def main():
 
     # Logging and loss variables
     num_scenes = args.num_processes
+
+    # print(num_scenes)
+    # exit(0)
+
     num_episodes = int(args.num_eval_episodes)
 
     device = args.device = torch.device(args.policy_gpu_id if args.cuda else "cpu")
@@ -150,14 +157,26 @@ def main():
     # 5,6,7,.. : Semantic Categories
     nc = args.num_sem_categories + 4  # num channels
 
+
+
+
+
+
     # Calculating full and local map sizes
     map_size = args.map_size_cm // args.map_resolution
     full_w, full_h = map_size, map_size
     local_w = int(full_w / args.global_downscaling)
     local_h = int(full_h / args.global_downscaling)
 
+    # 8 global goal selection
+    global_action_selection_list = np.asarray([[0,0],[0, int(local_w/2)],[0, local_w-1],\
+                    [int(local_h/2), 0], [int(local_w/2), local_w-1],\
+                    [int(local_h-1), 0], [int(local_h-1), int(local_w/2)], [int(local_h-1), local_w-1]])
+
+
     # Initializing full and local map
-    points_channel_num = 12
+    # points_channel_num = 12
+    points_channel_num = 3 + args.num_sem_categories + 1 + 1
     full_map = torch.zeros(num_scenes, nc, full_w, full_h).float().to(device)
     local_map = torch.zeros(num_scenes, nc, local_w,
                             local_h).float().to(device)
@@ -293,8 +312,16 @@ def main():
                                           args.map_point_size), dtype='float32')  
 
     # Global policy action space
-    g_action_space = gym.spaces.Box(low=0.0, high=0.99,
-                                    shape=(3,), dtype=np.float32)
+    # g_action_space = gym.spaces.Box(low=0.0, high=0.99,
+    #                                 shape=(3,), dtype=np.float32)
+
+    g_action_space = gym.spaces.Discrete(8)
+
+    # g_action_space = gym.spaces.MultiDiscrete([8, 10])
+
+
+
+
 
     # Global policy recurrent layer size
     g_hidden_size = args.global_hidden_size
@@ -406,21 +433,33 @@ def main():
             deterministic=False
         )
 
-    cpu_actions = nn.Sigmoid()(g_action[: ,:2]).cpu().numpy()
-    global_goals = [[int(action[0] * local_w), int(action[1] * local_h)]
-                    for action in cpu_actions]
-    global_goals = [[min(x, int(local_w - 1)), min(y, int(local_h - 1))]
-                    for x, y in global_goals]
+
+
+    # print("cpu_actiongs!!!!!!!!!", g_action)
+
+    # cpu_actions = nn.Sigmoid()(g_action[: ,:2]).cpu().numpy()
+
+    cpu_actions = g_action.cpu().numpy()
+
+    global_goals = [global_action_selection_list[cpu_actions[action]]
+                    for action in range(num_scenes)]
+
+    # print("global_goals", global_goals)
+
+
+
+    # global_goals = [[min(x, int(local_w - 1)), min(y, int(local_h - 1))]
+    #                 for x, y in global_goals]
 
     goal_maps = [np.zeros((local_w, local_h)) for _ in range(num_scenes)]
 
 
-
-
+    print("global_goals", global_goals)
 
 
     for e in range(num_scenes):
-        goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
+        print("num_scenes", e)
+        goal_maps[e][global_goals[e][1], global_goals[e][0]] = 1
 
     planner_inputs = [{} for e in range(num_scenes)]
     for e, p_input in enumerate(planner_inputs):
@@ -640,10 +679,21 @@ def main():
                     extras=g_rollouts.extras[g_step + 1],
                     deterministic=False
                 )
-            cpu_actions = nn.Sigmoid()(g_action[:,:2]).cpu().numpy()
-            global_goals = [[int(action[0] * local_w),
-                             int(action[1] * local_h)]
-                            for action in cpu_actions]
+
+            cpu_actions = g_action.cpu().numpy()
+
+            global_goals = [global_action_selection_list[cpu_actions[action]]
+                            for action in range(num_scenes)]
+
+            # cpu_actions = nn.Sigmoid()(g_action[:,:2]).cpu().numpy()
+            # global_goals = [[int(action[0] * local_w),
+            #                  int(action[1] * local_h)]
+            #                 for action in cpu_actions]
+
+            # print("cpu_actiongs!!!!!!!!!", global_goals)
+
+
+
             # print("global_goals_1",global_goals)
             global_goals = [[min(x, int(local_w - 1)),
                              min(y, int(local_h - 1))]
@@ -663,7 +713,8 @@ def main():
         # for e in range(num_scenes):
         #     goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
 
-        confidence_thres = args.sem_pred_lower_bound + nn.Sigmoid()(g_action[:,2]).cpu().numpy()*(1 - args.sem_pred_lower_bound)
+        # confidence_thres = args.sem_pred_lower_bound + nn.Sigmoid()(g_action[:,2]).cpu().numpy()*(1 - args.sem_pred_lower_bound)
+        confidence_thres = 0.75
         # import time 
         # t_s = time.time()
 
@@ -671,11 +722,11 @@ def main():
 
             for e in range(num_scenes):
 
-                cat_pred_threshold[infos[e]['goal_cat_id']].append(confidence_thres[e])
-                timestep_threshold[infos[e]['timestep']] += confidence_thres[e]
+                cat_pred_threshold[infos[e]['goal_cat_id']].append(confidence_thres)
+                timestep_threshold[infos[e]['timestep']] += confidence_thres
                 timestep_count_threshold[infos[e]['timestep']]+=1
 
-                sample_points_tensor = gl_tree_list[e].find_object_goal_points(gl_tree_list[e].observation_window, goal_cat_id[e], confidence_thres[e])
+                sample_points_tensor = gl_tree_list[e].find_object_goal_points(gl_tree_list[e].observation_window, goal_cat_id[e], confidence_thres)
 
                 if sample_points_tensor is not None:
                     sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
@@ -692,18 +743,18 @@ def main():
 
                     found_goal[e] = 1
                 else:
-                    goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
+                    goal_maps[e][global_goals[e][1], global_goals[e][0]] = 1
 
         if args.stop_policy == "2D":
             for e in range(num_scenes):
     
-                cat_pred_threshold[infos[e]['goal_cat_id']].append(confidence_thres[e])
-                timestep_threshold[infos[e]['timestep']] += confidence_thres[e]
+                cat_pred_threshold[infos[e]['goal_cat_id']].append(confidence_thres)
+                timestep_threshold[infos[e]['timestep']] += confidence_thres
                 timestep_count_threshold[infos[e]['timestep']]+=1
 
                 cn = infos[e]['goal_cat_id'] + 4
-                if torch.any((local_map[e, cn, :, :] -  confidence_thres[e]) > 0. ):
-                    cat_semantic_map = (local_map[e, cn, :, :] - confidence_thres[e]).cpu().numpy()
+                if torch.any((local_map[e, cn, :, :] -  confidence_thres) > 0. ):
+                    cat_semantic_map = (local_map[e, cn, :, :] - confidence_thres).cpu().numpy()
                     cat_semantic_scores = cat_semantic_map
                     cat_semantic_scores[cat_semantic_scores > 0] = 1.
                     cat_semantic_scores[cat_semantic_scores < 0] = 0.

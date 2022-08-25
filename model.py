@@ -138,7 +138,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
                     continue
                 
                 # get the value
-                points_map_value = input_points_ful[:, 10].clamp(max=1.0)#.reshape(input_points_ful.shape[0])
+                points_map_value = input_points_ful[:, -2].clamp(max=1.0)#.reshape(input_points_ful.shape[0])
 
                 # scatter the value and normalization
                 points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
@@ -167,7 +167,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
                     continue
                 
                 # get the value
-                points_map_value = input_points_ful[:, 11]#.reshape(input_points_ful.shape[0])
+                points_map_value = input_points_ful[:, -1]#.reshape(input_points_ful.shape[0])
 
                 # scatter the value and normalization
                 points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
@@ -425,6 +425,9 @@ class Semantic_Mapping(nn.Module):
         y2 = y1 + self.vision_range
         agent_view[:, 0:1, y1:y2, x1:x2] = fp_map_pred
         agent_view[:, 1:2, y1:y2, x1:x2] = fp_exp_pred
+
+
+        
         agent_view[:, 4:, y1:y2, x1:x2] = torch.clamp(
             agent_height_proj[:, 1:, :, :] / self.cat_pred_threshold,
             min=0.0, max=1.0)
@@ -503,7 +506,7 @@ class Semantic_Mapping(nn.Module):
             if world_view_sem.shape[0] <50:
                 continue
 
-            world_view_label = np.argmax(world_view_sem, axis=1)
+            world_view_label = np.argmax(world_view_sem, axis=1) # 
 
 
             world_view_rgb = obs[e, :3, :, :].permute(1,2,0).reshape(-1,3)[non_zero_row].cpu().numpy()
@@ -528,16 +531,9 @@ class Semantic_Mapping(nn.Module):
             sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
             sample_points_tensor[:, 2]  = sample_points_tensor[:, 2] - 0.88 * 100
             sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution
-            # sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / (args.map_resolution * args.global_downscaling)
-            # sample_points_tensor_tmp = sample_points_tensor[np.where((sample_points_tensor[:, 0]>=0) & (sample_points_tensor[:, 0]<local_w) & \
-            #     (sample_points_tensor[:, 1]>=0) & (sample_points_tensor[:, 1]<local_h))]
-            # sample_points_tensor_pos = sample_points_tensor_tmp[:, :2].long()
 
             observation_points[e] = sample_points_tensor.transpose(1, 0)
-            # sample_points_tensor_pos = sample_points_tensor_tmp[:, :2].long()
 
-
-            # print(time.time() - time_s)
 
 
             #======================= visualize =====================

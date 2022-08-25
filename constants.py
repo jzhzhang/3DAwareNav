@@ -279,7 +279,55 @@ mpcat40_labels = [
 #             'bathtub':15 #b in resnet
 # }
 
-habitat_labels = {
+
+
+
+# HM_semantic_name_2_id = {
+#     "chair": 0,
+#     "bed": 1,
+#     "plant": 2,
+#     "toilet": 3,
+#     "tv_monitor": 4,
+#     "sofa": 5
+# }
+
+# HM_semantic_name_2_id = {
+#     "chair": 0,
+#     "bed": 1,
+#     "plant": 2,
+#     "toilet": 3,
+#     "tv_monitor": 4,
+#     "sofa": 5
+# }
+
+
+
+mp3d_habitat_labels = {
+            'chair': 0, #g
+            'table': 1, #g
+            'picture':2, #b
+            'cabinet':3, # in resnet
+            'cushion':4, # in resnet
+            'sofa':5, #g
+            'bed':6, #g
+            'chest_of_drawers':7, #b in resnet
+            'plant':8, #g
+            'sink':9, #g
+            'toilet':10, #g
+            'stool':11, #b
+            'towel':12, #b in resnet
+            'tv_monitor':13, #g
+            'shower':14, #b
+            'bathtub':15, #b in resnet
+            'counter':16, #b isn't this table?
+            'fireplace':17,
+            'gym_equipment':18,
+            'seating':19,
+            'clothes':20, # in resnet
+            'background': 21
+}
+
+hm3d_habitat_labels = {
             # 'background': 0,
             'chair': 0, #g
             'bed': 1, #g
@@ -287,64 +335,51 @@ habitat_labels = {
             'toilet':3, # in resnet
             'tv_monitor':4, # in resnet
             'sofa':5,
-            'cabinet':6, #background
+            'background':6, #background
 }
 
-
-# HM_semantic_name_2_id = {
-#     "chair": 0,
-#     "bed": 1,
-#     "plant": 2,
-#     "toilet": 3,
-#     "tv_monitor": 4,
-#     "sofa": 5
-# }
-
-# HM_semantic_name_2_id = {
-#     "chair": 0,
-#     "bed": 1,
-#     "plant": 2,
-#     "toilet": 3,
-#     "tv_monitor": 4,
-#     "sofa": 5
-# }
-
-
-
 # habitat_labels = {
+#             # 'background': 0,
 #             'chair': 0, #g
-#             'table': 1, #g
-#             'picture':2, #b
-#             'cabinet':3, # in resnet
-#             'cushion':4, # in resnet
-#             'sofa':5, #g
-#             'bed':6, #g
-#             'chest_of_drawers':7, #b in resnet
-#             'plant':8, #g
-#             'sink':9, #g
-#             'toilet':10, #g
-#             'stool':11, #b
-#             'towel':12, #b in resnet
-#             'tv_monitor':13, #g
-#             'shower':14, #b
-#             'bathtub':15, #b in resnet
-#             'counter':16, #b isn't this table?
-#             'fireplace':17,
-#             'gym_equipment':18,
-#             'seating':19,
-#             'clothes':20, # in resnet
-#             'background': 21
+#             'bed': 1, #g
+#             'plant':2, #b
+#             'toilet':3, # in resnet
+#             'tv_monitor':4, # in resnet
+#             'sofa':5,
+#             'cabinet':6, #background
 # }
 
 
-fourty221_ori = {}
-# twentyone240 = {}
-for i in range(len(mpcat40_labels)):
-    lb = mpcat40_labels[i]
-    if lb in habitat_labels.keys():
-        fourty221_ori[i] = habitat_labels[lb]
-        # twentyone240[habitat_labels[lb]] = i
-print("habitat_labels",habitat_labels)
-print(fourty221_ori)
-print(len(fourty221_ori))
-fourty221 = copy.deepcopy(fourty221_ori)
+# fourty221_ori = {}
+# # twentyone240 = {}
+# for i in range(len(mpcat40_labels)):
+#     lb = mpcat40_labels[i]
+#     if lb in habitat_labels.keys():
+#         fourty221_ori[i] = habitat_labels[lb]
+#         # twentyone240[habitat_labels[lb]] = i
+# print("habitat_labels",habitat_labels)
+# print(fourty221_ori)
+# print(len(fourty221_ori))
+# fourty221 = copy.deepcopy(fourty221_ori)
+
+
+def get_habitat_labels(data_name):
+    if data_name =="hm3d":
+        return hm3d_habitat_labels
+    elif data_name =="mp3d":
+        return mp3d_habitat_labels
+
+def get_fourty_dict(data_name):
+    fourty2_dict = {}
+
+    for i in range(len(mpcat40_labels)):
+        lb = mpcat40_labels[i]
+        if data_name =="hm3d":
+            if lb in hm3d_habitat_labels.keys():
+                fourty2_dict[i] = hm3d_habitat_labels[lb]
+        elif data_name =="mp3d":
+            if lb in mp3d_habitat_labels.keys():
+                fourty2_dict[i] = mp3d_habitat_labels[lb]
+
+    fourty2 = copy.deepcopy(fourty2_dict)
+    return fourty2

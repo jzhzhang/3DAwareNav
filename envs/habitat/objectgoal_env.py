@@ -12,7 +12,7 @@ from envs.utils.fmm_planner import FMMPlanner
 from constants import coco_categories
 import envs.utils.pose as pu
 
-from constants import habitat_labels
+from constants import get_habitat_labels
 
 class ObjectGoal_Env(habitat.RLEnv):
     """The Object Goal Navigation environment class. The class is responsible
@@ -25,6 +25,8 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.rank = rank
 
         super().__init__(config_env, dataset)
+
+        self.habitat_labels = get_habitat_labels(args.dataset)
 
         # print("=====goals_by_category", dataset.goals_by_category)
 
@@ -117,7 +119,7 @@ class ObjectGoal_Env(habitat.RLEnv):
 
         goal_name = episode["object_category"]
         # goal_idx = episode["object_id"]
-        goal_idx = habitat_labels[goal_name]
+        goal_idx = self.habitat_labels[goal_name]
         # floor_idx = episode["floor_id"]
 
         self.goal_idx = goal_idx
