@@ -497,7 +497,7 @@ class Semantic_Mapping(nn.Module):
 
             non_zero_row_1 = torch.abs(point_cloud_t_3d[e,...].reshape(-1,3)).sum(dim=1) > 0
             non_zero_row_2 = torch.abs(world_view_sem_t).sum(dim=1) > 0
-            non_zero_row_3 = torch.argmax(world_view_sem_t, dim=1) != 6
+            non_zero_row_3 = torch.argmax(world_view_sem_t, dim=1) != self.num_sem_categories-1
 
             non_zero_row = non_zero_row_1 & non_zero_row_2 & non_zero_row_3
             world_view_sem = world_view_sem_t[non_zero_row].cpu().numpy()
