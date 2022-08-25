@@ -4,7 +4,7 @@ export MAGNUM_LOG="quiet"
 
 # python main.py --auto_gpu_config 0 -n 8 --sem_gpu_id "cuda:3"  --policy_gpu_id "cuda:0"  --sim_gpu_id "0,0,2,3"  --split train --backbone_2d  "rednet" --stop_policy "3D" --print_images 1  -d ./tmp --exp_name exp_kl_goal  --save_periodic 20000 
 
-python main.py --auto_gpu_config 0 -n 8 --sem_gpu_list "0,1"  --policy_gpu_id "cuda:0" \
+python main.py --auto_gpu_config 0 -n 8 --sem_gpu_id_list "0,1"  --policy_gpu_id "cuda:0" \
     --sim_gpu_id "2"  --split train --backbone_2d  "rednet" --stop_policy "3D" \
     --deactivate_entropymap\
     --print_images 1  -d ./tmp --exp_name exp_kl_goal  --save_periodic 10000 
