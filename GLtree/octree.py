@@ -355,7 +355,7 @@ class GL_tree:
             if node.label != goal_obj_id or node.seg_prob_fused[goal_obj_id] < threshold:
                 continue
             count = 0
-            for i in range(self.num_sem_categories):
+            for i in range(8):
                 if node.branch_array[i] is not None and node.branch_array[i].label == goal_obj_id:
                     count += 1 
             if count >2:
