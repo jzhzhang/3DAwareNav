@@ -81,21 +81,12 @@ class Goal_Oriented_Semantic_Policy(NNBase):
             Flatten()
         )
 
-        self.rnn_mlp1 = nn.Sequential(
+        self.mlp1 = nn.Sequential(
             nn.Linear(self.out_size_x * self.out_size_y * 32, hidden_size),
             nn.ReLU()
         )
-        self.rnn_mlp2 = nn.Sequential(
-            nn.Linear(hidden_size, 256),
-            nn.ReLU()
-        )
-
-        self.emb_mlp1 = nn.Sequential(
-            nn.Linear(256, 64),
-            nn.ReLU()
-        )
-        self.emb_mlp2 = nn.Sequential(
-            nn.Linear(64 + 24 , 256),
+        self.mlp2 = nn.Sequential(
+            nn.Linear(hidden_size + 3 * 8, 256),
             nn.ReLU()
         )
         self.orientation_emb = nn.Embedding(72, 8)
@@ -183,23 +174,19 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         # policy net
         x = self.policy_net(x)
 
-        # RNN module (deactive)
-        x = self.rnn_mlp1(x)
+        # GRU module (deactive) & other information embedding
+        x = self.mlp1(x)
+
         if self.is_recurrent:
             x, rnn_hxs = self._forward_gru(x, rnn_hxs, masks)
-        x = self.rnn_mlp2(x)
-        
-        # extra information embedding
-        #   output: bs * (4 * 3 = 12)
-        x = self.emb_mlp1(x)
 
         orientation_emb = self.orientation_emb(extras[:, 0])
         goal_emb = self.goal_emb(extras[:, 1])
         time_effe_emb = self.time_emb(extras[:, 2])
         extra_tot = torch.cat((orientation_emb, goal_emb, time_effe_emb), 1)
         x = torch.cat((x, extra_tot), 1)
-
-        x = self.emb_mlp2(x)
+        
+        x = self.mlp2(x)
         
         return self.critic_mlp(x).squeeze(-1), x, rnn_hxs
 
