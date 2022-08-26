@@ -353,12 +353,24 @@ class GL_tree:
         for node in node_set:
             if node.label != goal_obj_id or node.seg_prob_fused[goal_obj_id] < threshold:
                 continue
+            # check the 1-distance nodes
             count = 0
-            for i in range(8):
+            surrond_list = []
+            for i in range(8) :
                 if node.branch_array[i] is not None and node.branch_array[i].label == goal_obj_id:
                     count += 1 
-            if count > 4:
-                goal_list.append(node)
+                    surrond_list.append(node.branch_array[i])
+            if count <= 4 :
+                continue
+            # check the 2-distance nodes
+            count1 = 0
+            for node_s in surrond_list :
+                for j in range(8) :
+                    if node_s.branch_array[j] is not None and node_s.branch_array[j].label == goal_obj_id:
+                        count1 += 1
+            if count1 - count <= 8 :
+                continue
+            goal_list.append(node)
 
         if len(goal_list) == 0:
             return None 
