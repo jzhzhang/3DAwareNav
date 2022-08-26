@@ -42,7 +42,7 @@ import time
 
 class Goal_Oriented_Semantic_Policy(NNBase):
 
-    def __init__(self, input_map_shape, input_points_shape, recurrent = False, hidden_size = 512,
+    def __init__(self, input_map_shape, input_points_shape, recurrent = False, hidden_size = 256,
                  num_sem_categories = 6):
         super(Goal_Oriented_Semantic_Policy, self).__init__(
             recurrent, hidden_size, hidden_size)
@@ -183,8 +183,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         orientation_emb = self.orientation_emb(extras[:, 0])
         goal_emb = self.goal_emb(extras[:, 1])
         time_effe_emb = self.time_emb(extras[:, 2])
-        extra_tot = torch.cat((orientation_emb, goal_emb, time_effe_emb), 1)
-        x = torch.cat((x, extra_tot), 1)
+        x = torch.cat((x, orientation_emb, goal_emb, time_effe_emb), 1)
         
         x = self.mlp2(x)
         
