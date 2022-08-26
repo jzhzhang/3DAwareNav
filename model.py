@@ -42,7 +42,7 @@ import time
 
 class Goal_Oriented_Semantic_Policy(NNBase):
 
-    def __init__(self, input_map_shape, input_points_shape, recurrent = False, hidden_size = 512,
+    def __init__(self, input_map_shape, input_points_shape, recurrent = False, hidden_size = 256,
                  num_sem_categories = 6):
         super(Goal_Oriented_Semantic_Policy, self).__init__(
             recurrent, hidden_size, hidden_size)
@@ -183,8 +183,7 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         orientation_emb = self.orientation_emb(extras[:, 0])
         goal_emb = self.goal_emb(extras[:, 1])
         time_effe_emb = self.time_emb(extras[:, 2])
-        extra_tot = torch.cat((orientation_emb, goal_emb, time_effe_emb), 1)
-        x = torch.cat((x, extra_tot), 1)
+        x = torch.cat((x, orientation_emb, goal_emb, time_effe_emb), 1)
         
         x = self.mlp2(x)
         
@@ -479,7 +478,7 @@ class Semantic_Mapping(nn.Module):
 
             non_zero_row_1 = torch.abs(point_cloud_t_3d[e,...].reshape(-1,3)).sum(dim=1) > 0
             non_zero_row_2 = torch.abs(world_view_sem_t).sum(dim=1) > 0
-            non_zero_row_3 = torch.argmax(world_view_sem_t, dim=1) != 6
+            non_zero_row_3 = torch.argmax(world_view_sem_t, dim=1) != self.num_sem_categories-1
 
             non_zero_row = non_zero_row_1 & non_zero_row_2 & non_zero_row_3
             world_view_sem = world_view_sem_t[non_zero_row].cpu().numpy()
