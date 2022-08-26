@@ -357,7 +357,7 @@ class GL_tree:
             for i in range(8):
                 if node.branch_array[i] is not None and node.branch_array[i].label == goal_obj_id:
                     count += 1 
-            if count >2:
+            if count > 4:
                 goal_list.append(node)
 
         if len(goal_list) == 0:
