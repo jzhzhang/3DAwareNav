@@ -166,7 +166,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         action = self._plan(planner_inputs)
         # print("action: ", action)
 
-        if (self.episode_no-1) % 3==0 and (self.args.visualize or self.args.print_images) or (self.episode_no-1) % 10==0 and (self.args.visualize or self.args.print_images):
+        if (self.episode_no-1) % 3==0 and (self.args.visualize or self.args.print_images) or (self.episode_no-1) % 9==0 and (self.args.visualize or self.args.print_images):
             map_img = self._visualize_map(planner_inputs)
 
             
@@ -176,7 +176,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
 
         # save gif every 50 eps
-        if (self.episode_no-1) % 10==0 and (self.args.visualize or self.args.print_images) :
+        if (self.episode_no-1) % 9==0 and (self.args.visualize or self.args.print_images) :
             self._visualize_gif(map_img, action)
 
 
@@ -484,7 +484,9 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
         sem_map += 5
 
-        no_cat_mask = sem_map == self.args.num_sem_categories -1 + 4 + 1
+
+        no_cat_mask = sem_map == self.args.num_sem_categories + 4
+        
         map_mask = np.rint(map_pred) == 1
         exp_mask = np.rint(exp_pred) == 1
         vis_mask = self.visited_vis[gx1:gx2, gy1:gy2] == 1
