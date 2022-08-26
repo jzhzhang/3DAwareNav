@@ -30,7 +30,7 @@ class point3D:
 
 
         self.seg_prob_fused = np.ones(num_sem_categories, dtype=float)
-        self.label_thres = 0.8
+        self.label_thres = 0.0
 
         self.kl_div = 0.0
         self.entropy = 0.0
@@ -59,23 +59,22 @@ class point3D:
             return
         
         #--------------- MAX Fusion ---------------#
-        # if self.label == -1: #init
-        #     self.label = np.argmax(point_seg.reshape(-1))
-        #     self.max_prob = np.max(point_seg.reshape(-1))
-        # else: #update
-        #     new_frame_max_prob = np.max(point_seg.reshape(-1))
-        #     if new_frame_max_prob > self.max_prob:
-        #         self.label = np.argmax(point_seg.reshape(-1))
-        #         self.max_prob = new_frame_max_prob
+        if self.label == -1: #init
+            self.seg_prob_fused = point_seg.reshape(-1)
+        else: #update
+            self.seg_prob_fused = np.maximum(self.seg_prob_fused, point_seg.reshape(-1))
+            self.seg_prob_fused /= np.sum(self.seg_prob_fused) # Normalization
+        
+        self.label = np.argmax(self.seg_prob_fused)
         #--------------- MAX Fusion ---------------#
 
         #--------------- Bayesian Fusion ---------------#
-        # update prob
-        self.seg_prob_fused *= point_seg.reshape(-1)
-        self.seg_prob_fused /= np.sum(self.seg_prob_fused) # Normalization
-        # update label
-        if np.max(self.seg_prob_fused) > self.label_thres or self.label == -1:
-            self.label = np.argmax(self.seg_prob_fused)
+        # # update prob
+        # self.seg_prob_fused *= point_seg.reshape(-1)
+        # self.seg_prob_fused /= np.sum(self.seg_prob_fused) # Normalization
+        # # update label
+        # if np.max(self.seg_prob_fused) > self.label_thres or self.label == -1:
+        #     self.label = np.argmax(self.seg_prob_fused)
         #--------------- Bayesian Fusion ---------------#
 
         #--------------- No Fusion latest frame---------------#
