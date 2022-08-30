@@ -340,14 +340,7 @@ class GL_tree:
 
             node.kl_div = temp_kl_div_max
             
-            if math.isinf(node.kl_div):
-                print("inf occurs !!!!!!!!!!!!")
-                print("inf occurs !!!!!!!!!!!!")
-                print("inf occurs !!!!!!!!!!!!")
-
-            #print(node.kl_div)
-
-
+            
     def find_object_goal_points(self, node_set, goal_obj_id, threshold):
         goal_list = []
         for node in node_set:
@@ -355,13 +348,14 @@ class GL_tree:
                 continue
             # check the 1-distance nodes
             count = 0
-            surrond_list = []
+            # surrond_list = []
             for i in range(8) :
                 if node.branch_array[i] is not None and node.branch_array[i].label == goal_obj_id:
                     count += 1 
-                    surrond_list.append(node.branch_array[i])
+                    # surrond_list.append(node.branch_array[i])
             if count <= 4 :
                 continue
+            '''
             # check the 2-distance nodes
             count1 = 0
             for node_s in surrond_list :
@@ -370,6 +364,7 @@ class GL_tree:
                         count1 += 1
             if count1 - count <= 8 :
                 continue
+            '''
             goal_list.append(node)
 
         if len(goal_list) == 0:
