@@ -313,7 +313,7 @@ class GL_tree:
     # simple update node
     def update_neighbor_points(self, per_image_node_set):
         for node in per_image_node_set:
-            temp_fused = np.copy(node.seg_prob_fused)
+            # temp_fused = np.copy(node.seg_prob_fused)
 
             temp_kl_div_max = node.kl_div
             
@@ -323,7 +323,7 @@ class GL_tree:
 
             for i in range(8):
                 if node.branch_array[i] is not None:
-                    temp_fused += node.branch_array[i].seg_prob_fused
+                    # temp_fused += node.branch_array[i].seg_prob_fused
                     #---- KL Divergence MAX ---#
                     temp_branch_prob = node.branch_array[i].seg_prob_fused
                     temp_branch_prob[np.where(temp_branch_prob == 0)] = 1
@@ -334,9 +334,9 @@ class GL_tree:
                         temp_kl_div_max = branch_kl_div
                     #---- KL Divergence MAX ---#
 
-            temp_fused /= np.sum(temp_fused)
-            node.seg_prob_fused = temp_fused
-            node.label = np.argmax(node.seg_prob_fused)
+            # temp_fused /= np.sum(temp_fused)
+            # node.seg_prob_fused = temp_fused
+            # node.label = np.argmax(node.seg_prob_fused)
 
             node.kl_div = temp_kl_div_max
             
@@ -354,17 +354,14 @@ class GL_tree:
                     count += 1 
                     # surrond_list.append(node.branch_array[i])
             if count <= 4 :
+                temp_fused = np.copy(node.seg_prob_fused)
+                for i in range(8):
+                    if node.branch_array[i] is not None:
+                        temp_fused = np.maximum(temp_fused, node.branch_array[i].seg_prob_fused)
+                temp_fused /= np.sum(temp_fused)
+                node.seg_prob_fused = temp_fused
+                node.label = np.argmax(node.seg_prob_fused)
                 continue
-            '''
-            # check the 2-distance nodes
-            count1 = 0
-            for node_s in surrond_list :
-                for j in range(8) :
-                    if node_s.branch_array[j] is not None and node_s.branch_array[j].label == goal_obj_id:
-                        count1 += 1
-            if count1 - count <= 8 :
-                continue
-            '''
             goal_list.append(node)
 
         if len(goal_list) == 0:
