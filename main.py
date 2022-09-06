@@ -11,8 +11,8 @@ import torch
 import numpy as np
 from datetime import datetime
 
-from model import RL_Policy, Semantic_Mapping
-from utils.storage import GlobalRolloutStorage
+from model import RL_Policy, Semantic_Mapping, RL_Policy_3D
+from utils.storage import GlobalRolloutStorage, GlobalRolloutStorage_3d
 from utils.log_writter import log_writter
 from envs import make_vec_envs
 from arguments import get_args
@@ -124,6 +124,11 @@ def main():
     g_value_losses = deque(maxlen=1000)
     g_action_losses = deque(maxlen=1000)
     g_dist_entropies = deque(maxlen=1000)
+
+
+    g_value_losses_3d = deque(maxlen=1000)
+    g_action_losses_3d = deque(maxlen=1000)
+    g_dist_entropies_3d = deque(maxlen=1000)
 
     per_step_g_rewards = deque(maxlen=1000)
 
@@ -317,6 +322,9 @@ def main():
 
     g_action_space = gym.spaces.Discrete(8)
 
+    g_action_space_3d = gym.spaces.Discrete(11)
+
+
     # g_action_space = gym.spaces.MultiDiscrete([8, 10])
 
 
@@ -342,6 +350,21 @@ def main():
                        args.entropy_coef, lr=args.lr, eps=args.eps,
                        max_grad_norm=args.max_grad_norm)
 
+
+    g_policy_3d = RL_Policy_3D(g_points_observation_space.shape, g_action_space_3d,
+                                model_type=1,
+                                base_kwargs={
+                                            'hidden_size': g_hidden_size,
+                                            'num_sem_categories': ngc - 8
+                                            }).to(device)
+
+    g_agent_3d = algo.PPO(g_policy_3d, args.clip_param, args.ppo_epoch,
+                       args.num_mini_batch, args.value_loss_coef,
+                       args.entropy_coef, lr=args.lr, eps=args.eps,
+                       max_grad_norm=args.max_grad_norm)
+
+
+
     global_input = torch.zeros(num_scenes, ngc, local_w, local_h)
     global_orientation = torch.zeros(num_scenes, 1).long()
     intrinsic_rews = torch.zeros(num_scenes).to(device)
@@ -353,14 +376,31 @@ def main():
                                       g_action_space, g_policy.rec_state_size,
                                       es).to(device)
 
+    g_rollouts_3d = GlobalRolloutStorage_3d(args.num_global_steps,
+                                      num_scenes, g_points_observation_space.shape, 
+                                      g_action_space_3d, g_policy_3d.rec_state_size,
+                                      es).to(device)
+
+
+
+
+
+
     if args.load != "0":
-        print("Loading model {}".format(args.load))
-        state_dict = torch.load(args.load,
+        print("Loading model 2D map {}".format(args.load_2d))
+        print("Loading model 3D points {}".format(args.load_3d))
+
+        state_dict = torch.load(args.load_2d,
                                 map_location=lambda storage, loc: storage)
         g_policy.load_state_dict(state_dict)
 
+        state_dict_3d = torch.load(args.load_3d,
+                                map_location=lambda storage, loc: storage)
+        g_policy_3d.load_state_dict(state_dict_3d)
+
     if args.eval:
         g_policy.eval()
+        g_policy_3d.eval()
 
     # Predict semantic map from frame 1
     poses = torch.from_numpy(np.asarray(
@@ -433,23 +473,27 @@ def main():
             deterministic=False
         )
 
-
-
-    # print("cpu_actiongs!!!!!!!!!", g_action)
-
-    # cpu_actions = nn.Sigmoid()(g_action[: ,:2]).cpu().numpy()
+    # Run Global Policy (global_goals = Long-Term Goal)
+    g_value_3d, g_action_3d, g_action_log_prob_3d, g_rec_states_3d = \
+        g_policy_3d.act(
+            g_rollouts_3d.obs_map[0],
+            g_rollouts_3d.obs_points[0],
+            g_rollouts_3d.rec_states[0],
+            g_rollouts_3d.masks[0],
+            extras=g_rollouts_3d.extras[0],
+            deterministic=False
+        )
 
     cpu_actions = g_action.cpu().numpy()
 
     global_goals = [global_action_selection_list[cpu_actions[action]]
                     for action in range(num_scenes)]
 
-    # print("global_goals", global_goals)
+    cpu_actions_3d = g_action_3d.cpu().numpy()
+    
 
 
 
-    # global_goals = [[min(x, int(local_w - 1)), min(y, int(local_h - 1))]
-    #                 for x, y in global_goals]
 
     goal_maps = [np.zeros((local_w, local_h)) for _ in range(num_scenes)]
 
@@ -657,17 +701,25 @@ def main():
             # Add samples to global policy storage
             if step == 0:
                 g_rollouts.obs_map[0].copy_(global_input)
-
                 g_rollouts.obs_points[0].copy_(observation_points)
-
-
                 g_rollouts.extras[0].copy_(extras)
-            else:
+
+                g_rollouts_3d.obs_points[0].copy_(observation_points)
+                g_rollouts_3d.extras[0].copy_(extras)
+
+            else: # share the same reward
                 g_rollouts.insert(
                     global_input, observation_points, g_rec_states,
                     g_action, g_action_log_prob, g_value,
                     g_reward, g_masks, extras
                 )
+
+                g_rollouts_3d.insert(
+                    observation_points, g_rec_states_3d,
+                    g_action_3d, g_action_log_prob_3d, g_value_3d,
+                    g_reward, g_masks, extras
+                )
+
 
             # Sample long-term goal from global policy
             g_value, g_action, g_action_log_prob, g_rec_states = \
@@ -679,6 +731,18 @@ def main():
                     extras=g_rollouts.extras[g_step + 1],
                     deterministic=False
                 )
+
+            g_value_3d, g_action_3d, g_action_log_prob_3d, g_rec_states_3d = \
+                g_policy.act(
+                    g_rollouts.obs_map[g_step + 1],
+                    g_rollouts.obs_points[g_step + 1],
+                    g_rollouts.rec_states[g_step + 1],
+                    g_rollouts.masks[g_step + 1],
+                    extras=g_rollouts.extras[g_step + 1],
+                    deterministic=False
+                )
+
+
 
             cpu_actions = g_action.cpu().numpy()
 
@@ -713,8 +777,8 @@ def main():
         # for e in range(num_scenes):
         #     goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
 
-        # confidence_thres = args.sem_pred_lower_bound + nn.Sigmoid()(g_action[:,2]).cpu().numpy()*(1 - args.sem_pred_lower_bound)
-        confidence_thres = 0.75
+        confidence_thres = args.sem_pred_lower_bound + g_action_3d.cpu().numpy()/10 * (1 - args.sem_pred_lower_bound)
+        # confidence_thres = 0.75
         # import time 
         # t_s = time.time()
 
@@ -722,11 +786,11 @@ def main():
 
             for e in range(num_scenes):
 
-                cat_pred_threshold[infos[e]['goal_cat_id']].append(confidence_thres)
-                timestep_threshold[infos[e]['timestep']] += confidence_thres
+                cat_pred_threshold[infos[e]['goal_cat_id']].append(confidence_thres[e])
+                timestep_threshold[infos[e]['timestep']] += confidence_thres[e]
                 timestep_count_threshold[infos[e]['timestep']]+=1
 
-                sample_points_tensor = gl_tree_list[e].find_object_goal_points(gl_tree_list[e].observation_window, goal_cat_id[e], confidence_thres)
+                sample_points_tensor = gl_tree_list[e].find_object_goal_points(gl_tree_list[e].observation_window, goal_cat_id[e], confidence_thres[e])
 
                 if sample_points_tensor is not None:
                     sample_points_tensor[:,:2] = sample_points_tensor[:,:2] - origins[e, :2] * 100
@@ -748,13 +812,13 @@ def main():
         if args.stop_policy == "2D":
             for e in range(num_scenes):
     
-                cat_pred_threshold[infos[e]['goal_cat_id']].append(confidence_thres)
-                timestep_threshold[infos[e]['timestep']] += confidence_thres
+                cat_pred_threshold[infos[e]['goal_cat_id']].append(confidence_thres[e])
+                timestep_threshold[infos[e]['timestep']] += confidence_thres[e]
                 timestep_count_threshold[infos[e]['timestep']]+=1
 
                 cn = infos[e]['goal_cat_id'] + 4
-                if torch.any((local_map[e, cn, :, :] -  confidence_thres) > 0. ):
-                    cat_semantic_map = (local_map[e, cn, :, :] - confidence_thres).cpu().numpy()
+                if torch.any((local_map[e, cn, :, :] -  confidence_thres[e]) > 0. ):
+                    cat_semantic_map = (local_map[e, cn, :, :] - confidence_thres[e]).cpu().numpy()
                     cat_semantic_scores = cat_semantic_map
                     cat_semantic_scores[cat_semantic_scores > 0] = 1.
                     cat_semantic_scores[cat_semantic_scores < 0] = 0.
@@ -816,7 +880,26 @@ def main():
                 g_value_losses.append(g_value_loss)
                 g_action_losses.append(g_action_loss)
                 g_dist_entropies.append(g_dist_entropy)
+
+
+                g_next_value_3d = g_policy_3d.get_value(
+                    g_rollouts_3d.obs_points[-1],
+                    g_rollouts_3d.rec_states[-1],
+                    g_rollouts_3d.masks[-1],
+                    extras=g_rollouts_3d.extras[-1]       
+                    )
+
+                g_rollouts_3d.compute_returns(g_next_value_3d, args.use_gae,
+                                           args.gamma, args.tau)
+                g_value_loss_3d, g_action_loss_3d, g_dist_entropy_3d = \
+                    g_agent_3d.update(g_rollouts_3d)
+                g_value_losses_3d.append(g_value_loss_3d)
+                g_action_losses_3d.append(g_action_loss_3d)
+                g_dist_entropies_3d.append(g_dist_entropy_3d)
+
+
             g_rollouts.after_update()
+            g_rollouts_3d.after_update()
 
         torch.set_grad_enabled(False)
         # ------------------------------------------------------------------

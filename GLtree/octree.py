@@ -30,6 +30,8 @@ class point3D:
 
 
         self.seg_prob_fused = np.ones(num_sem_categories, dtype=float)
+        self.seg_prob_fused_max = np.ones(num_sem_categories, dtype=float)
+
         self.label_thres = 0.0
 
         self.kl_div = 0.0
@@ -61,9 +63,10 @@ class point3D:
         #--------------- MAX Fusion ---------------#
         if self.label == -1: #init
             self.seg_prob_fused = point_seg.reshape(-1)
+            self.seg_prob_fused_max = point_seg.reshape(-1)
         else: #update
-            self.seg_prob_fused = np.maximum(self.seg_prob_fused, point_seg.reshape(-1))
-            self.seg_prob_fused /= np.sum(self.seg_prob_fused) # Normalization
+            self.seg_prob_fuseg_prob_fused_maxsed = np.maximum(self.seg_prob_fused_max, point_seg.reshape(-1))
+            self.seg_prob_fused = self.seg_prob_fused_max / np.sum(self.seg_prob_fused_max) # Normalization
         
         self.label = np.argmax(self.seg_prob_fused)
         #--------------- MAX Fusion ---------------#
