@@ -62,8 +62,8 @@ class point3D:
         
         #--------------- MAX Fusion ---------------#
         if self.label == -1: #init
-            self.seg_prob_fused = point_seg.reshape(-1)
-            self.seg_prob_fused_max = point_seg.reshape(-1)
+            self.seg_prob_fused, self.seg_prob_fused_max = point_seg.reshape(-1)
+            #  = point_seg.reshape(-1)
         else: #update
             self.seg_prob_fuseg_prob_fused_maxsed = np.maximum(self.seg_prob_fused_max, point_seg.reshape(-1))
             self.seg_prob_fused = self.seg_prob_fused_max / np.sum(self.seg_prob_fused_max) # Normalization
