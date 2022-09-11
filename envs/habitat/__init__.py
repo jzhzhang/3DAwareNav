@@ -72,7 +72,7 @@ def construct_envs(args):
     basic_config.freeze()
 
     scenes = basic_config.DATASET.CONTENT_SCENES
-    print("scenes1", scenes)
+    # print("scenes1", scenes)
     if "*" in basic_config.DATASET.CONTENT_SCENES:
         content_dir = os.path.join(basic_config.DATASET.EPISODES_DIR.format(
             split=args.split), "content")
@@ -80,7 +80,7 @@ def construct_envs(args):
         scenes = _get_scenes_from_folder(content_dir)
         # print("scenes: ",scenes)
 
-    print("scenes2", scenes)
+    # print("scenes2", scenes)
 
     if len(scenes) > 0:
         assert len(scenes) >= args.num_processes, (
@@ -112,28 +112,16 @@ def construct_envs(args):
                 sum(scene_split_sizes[:i]):
                 sum(scene_split_sizes[:i + 1])
             ]
+            # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            # config_env.DATASET.CONTENT_SCENES = scenes[:2]
+            # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+
+
             print("Thread {}: {}".format(i, config_env.DATASET.CONTENT_SCENES))
 
 
         gpu_id = gpu_visible_devices[int(i%len(gpu_visible_devices))]
 
-
-
-
-
-        # else:
-            #print(int((i - args.num_processes_on_first_gpu)
-            #             // args.num_processes_per_gpu) )
-
-            #gpu_id =  gpu_visible_devices[ int((i - args.num_processes_on_first_gpu)
-            #             // args.num_processes_per_gpu) ]
-            # gpu_id = gpu_visible_devices[1]
-
-            # print(int((i - args.num_processes_on_first_gpu)
-            #              // args.num_processes_per_gpu) + args.sim_gpu_id)
-
-            # gpu_id =  gpu_visible_devices[ int((i - args.num_processes_on_first_gpu)
-            #              // args.num_processes_per_gpu) + args.sim_gpu_id]
 
         print(">>>>>>>>>>>>", gpu_id)
                  
@@ -152,7 +140,7 @@ def construct_envs(args):
 
         # Reseting episodes manually, setting high max episode length in sim
         config_env.ENVIRONMENT.MAX_EPISODE_STEPS = 10000000
-        config_env.ENVIRONMENT.ITERATOR_OPTIONS.SHUFFLE = False
+        config_env.ENVIRONMENT.ITERATOR_OPTIONS.SHUFFLE = True
 
         config_env.SIMULATOR.RGB_SENSOR.WIDTH = args.env_frame_width
         config_env.SIMULATOR.RGB_SENSOR.HEIGHT = args.env_frame_height
@@ -165,6 +153,14 @@ def construct_envs(args):
         config_env.SIMULATOR.DEPTH_SENSOR.MIN_DEPTH = args.min_depth
         config_env.SIMULATOR.DEPTH_SENSOR.MAX_DEPTH = args.max_depth
         config_env.SIMULATOR.DEPTH_SENSOR.POSITION = [0, args.camera_height, 0]
+
+
+#   ITERATOR_OPTIONS:
+#     GROUP_BY_SCENE: True
+#     NUM_EPISODE_SAMPLE: 1
+#     SHUFFLE: False
+
+
 
         # config_env.SIMULATOR.SEMANTIC_SENSOR.WIDTH = args.env_frame_width
         # config_env.SIMULATOR.SEMANTIC_SENSOR.HEIGHT = args.env_frame_height
@@ -192,5 +188,5 @@ def construct_envs(args):
             )
         ),
     )
-
+    # exit(0)
     return envs
