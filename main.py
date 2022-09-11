@@ -495,6 +495,14 @@ def main():
         if finished.sum() == args.num_processes:
             break
 
+        if step%1000 == 0 :
+            with open('{}/{}_spl_per_cat_pred_thr_{}.json'.format(
+                dump_dir, args.split, str(step)), 'w') as f:
+                json.dump(spl_per_category, f)
+            with open('{}/{}_success_per_cat_pred_thr_{}.json'.format(
+                dump_dir, args.split, str(step)), 'w') as f:
+                json.dump(success_per_category, f)
+
         g_step = (step // args.num_local_steps) % args.num_global_steps
         l_step = step % args.num_local_steps
 

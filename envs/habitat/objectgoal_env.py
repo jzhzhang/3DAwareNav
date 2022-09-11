@@ -163,8 +163,8 @@ class ObjectGoal_Env(habitat.RLEnv):
         if new_scene:
             # self.scene_name = self.habitat_env.sim.config.SCENE
             self.scene_name = self.habitat_env.sim.config.sim_cfg.scene_id,
-
-            print("Changing scene: {}/{}".format(self.rank, self.scene_name))
+            with open('tmp/change_scene_record.txt', 'a') as f:
+                f.write("Changing scene: {}/{}\n".format(self.rank, self.scene_name))
 
         self.scene_path = self.habitat_env.sim.config.sim_cfg.scene_id
 

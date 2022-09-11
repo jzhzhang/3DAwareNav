@@ -1,5 +1,5 @@
 
-python main.py --auto_gpu_config 0  -n 8 \
+python main.py  --auto_gpu_config 0  -n 8 \
     --sem_gpu_id_list "2"  --policy_gpu_id "cuda:3"  --sim_gpu_id "3" \
     --backbone_2d "rednet"  --stop_policy "3D"  --deactivate_entropymap \
     --task_config "tasks/challenge_objectnav2021.local.rgbd.yaml"  --dataset "mp3d"  --num_sem_categories 22 \
