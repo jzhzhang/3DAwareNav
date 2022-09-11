@@ -532,8 +532,9 @@ def main():
                     episode_agent_success[e].append(agent_success)
                     episode_softspl[e].append(softspl)
 
-                    if len(episode_success[e]) == num_episodes:
+                    if infos[e]["repeat"]:
                         finished[e] = 1
+                    
                 else:
                     episode_success.append(success)
                     episode_spl.append(spl)
