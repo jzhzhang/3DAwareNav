@@ -35,6 +35,8 @@ os.environ["OMP_NUM_THREADS"] = "1"
 
 def main():
     args = get_args()
+    # print(args.load_2d)
+    # exit(0)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
@@ -143,6 +145,7 @@ def main():
     # Starting environments
     torch.set_num_threads(1)
     envs = make_vec_envs(args)
+    # exit(0)
     obs, infos = envs.reset()
 
     torch.set_grad_enabled(False)
@@ -186,8 +189,11 @@ def main():
     local_map = torch.zeros(num_scenes, nc, local_w,
                             local_h).float().to(device)
 
+
+    # points_channel_num_3d = 3 + 1 + 1
     observation_points = torch.zeros(num_scenes, points_channel_num, args.map_point_size)
 
+    # observation_points_3d = torch.zeros(num_scenes, points_channel_num_3d, args.map_point_size)
 
 
     print("=====full map=====", full_map.shape)
@@ -316,6 +322,10 @@ def main():
                                          (points_channel_num, 
                                           args.map_point_size), dtype='float32')  
 
+    g_points_3d_observation_space = gym.spaces.Box(0, 1,
+                                         (points_channel_num, 
+                                          args.map_point_size), dtype='float32')  
+
     # Global policy action space
     # g_action_space = gym.spaces.Box(low=0.0, high=0.99,
     #                                 shape=(3,), dtype=np.float32)
@@ -345,25 +355,24 @@ def main():
                                       'hidden_size': g_hidden_size,
                                       'num_sem_categories': ngc - 8
                                       }).to(device)
+
     g_agent = algo.PPO(g_policy, args.clip_param, args.ppo_epoch,
                        args.num_mini_batch, args.value_loss_coef,
                        args.entropy_coef, lr=args.lr, eps=args.eps,
                        max_grad_norm=args.max_grad_norm)
 
-
-    g_policy_3d = RL_Policy_3D(g_points_observation_space.shape, g_action_space_3d,
+    g_policy_3d = RL_Policy_3D(g_points_3d_observation_space.shape, g_action_space_3d,
                                 model_type=1,
                                 base_kwargs={
                                             'hidden_size': g_hidden_size,
-                                            'num_sem_categories': ngc - 8
+                                            'num_sem_categories': ngc - 8,
+                                            'points_channel_num': points_channel_num
                                             }).to(device)
 
-    g_agent_3d = algo.PPO(g_policy_3d, args.clip_param, args.ppo_epoch,
+    g_agent_3d = algo.PPO_3d(g_policy_3d, args.clip_param, args.ppo_epoch,
                        args.num_mini_batch, args.value_loss_coef,
                        args.entropy_coef, lr=args.lr, eps=args.eps,
                        max_grad_norm=args.max_grad_norm)
-
-
 
     global_input = torch.zeros(num_scenes, ngc, local_w, local_h)
     global_orientation = torch.zeros(num_scenes, 1).long()
@@ -371,22 +380,26 @@ def main():
     extras = torch.zeros(num_scenes, 3)
 
     # Storage
-    g_rollouts = GlobalRolloutStorage(args.num_global_steps,
+    g_rollouts   = GlobalRolloutStorage(args.num_global_steps,
                                       num_scenes, g_map_observation_space.shape, g_points_observation_space.shape, 
                                       g_action_space, g_policy.rec_state_size,
                                       es).to(device)
 
     g_rollouts_3d = GlobalRolloutStorage_3d(args.num_global_steps,
-                                      num_scenes, g_points_observation_space.shape, 
+                                      num_scenes, g_points_3d_observation_space.shape, 
                                       g_action_space_3d, g_policy_3d.rec_state_size,
                                       es).to(device)
 
+    # print("xxxxxxxxxxx", g_rollouts_3d)
+    # print("xxxxxxxxxxx", g_rollouts)
+
+
+    # exit(0)
 
 
 
 
-
-    if args.load != "0":
+    if args.load_2d != "0" and args.load_3d != "0":
         print("Loading model 2D map {}".format(args.load_2d))
         print("Loading model 3D points {}".format(args.load_3d))
 
@@ -456,10 +469,18 @@ def main():
     extras[:, 2] = timestep_array   #to the finish
 
     g_rollouts.obs_map[0].copy_(global_input)   
-
     g_rollouts.obs_points[0].copy_(observation_points)
-
     g_rollouts.extras[0].copy_(extras)
+
+    # observation_points_3d[:,:3,:] = observation_points[:,:3,:]
+    # for env_idx in range(num_scenes):
+    #     observation_points_3d[env_idx,3,:] = observation_points[env_idx, 3+goal_cat_id[env_idx], :] 
+    # observation_points_3d[:,points_channel_num_3d-2:points_channel_num_3d,:] = observation_points[:,points_channel_num-2:points_channel_num,:]
+
+    # print("xxxxxxxx", observation_points_3d.shape)
+    # exit(0)
+    g_rollouts_3d.obs_points[0].copy_(observation_points)
+    g_rollouts_3d.extras[0].copy_(extras)
 
     # Run Global Policy (global_goals = Long-Term Goal)
     g_value, g_action, g_action_log_prob, g_rec_states = \
@@ -476,9 +497,8 @@ def main():
     # Run Global Policy (global_goals = Long-Term Goal)
     g_value_3d, g_action_3d, g_action_log_prob_3d, g_rec_states_3d = \
         g_policy_3d.act(
-            g_rollouts_3d.obs_map[0],
             g_rollouts_3d.obs_points[0],
-            g_rollouts_3d.rec_states[0],
+            # g_rollouts_3d.rec_states[0],
             g_rollouts_3d.masks[0],
             extras=g_rollouts_3d.extras[0],
             deterministic=False
@@ -489,8 +509,9 @@ def main():
     global_goals = [global_action_selection_list[cpu_actions[action]]
                     for action in range(num_scenes)]
 
-    cpu_actions_3d = g_action_3d.cpu().numpy()
+    # cpu_actions_3d = g_action_3d.cpu().numpy()
     
+    confidence_thres = args.sem_pred_lower_bound + g_action_3d.cpu().numpy()/10 * (1 - args.sem_pred_lower_bound)
 
 
 
@@ -550,6 +571,7 @@ def main():
 
         for e, x in enumerate(done):
             if x:
+
                 spl = infos[e]['spl']
                 success = infos[e]['success']
                 dist = infos[e]['distance_to_goal']
@@ -557,19 +579,21 @@ def main():
                 agent_success = infos[e]['agent_success']
                 softspl = infos[e]['softspl']
 
-                spl_per_category[infos[e]['goal_name']].append(spl)
-                success_per_category[infos[e]['goal_name']].append(success)
-
-
                 if args.eval:
+
                     episode_success[e].append(success)
                     episode_spl[e].append(spl)
                     episode_dist[e].append(dist)
                     episode_agent_success[e].append(agent_success)
                     episode_softspl[e].append(softspl)
 
-                    if len(episode_success[e]) == num_episodes:
+                    if infos[e]["repeat"]:
                         finished[e] = 1
+                        # continue
+
+                    # if len(episode_success[e]) == num_episodes:
+                    #     finished[e] = 1
+
                 else:
                     episode_success.append(success)
                     episode_spl.append(spl)
@@ -577,9 +601,16 @@ def main():
                     episode_agent_success.append(agent_success)
                     episode_softspl.append(softspl)
 
+
+                spl_per_category[infos[e]['goal_name']].append(spl)
+                success_per_category[infos[e]['goal_name']].append(success)
+
                 wait_env[e] = 1.
                 update_intrinsic_rew(e)
                 init_map_and_pose_for_env(e)
+
+
+
         # ------------------------------------------------------------------
 
         # ------------------------------------------------------------------
@@ -603,9 +634,16 @@ def main():
                 [infos[env_idx]['goal_cat_id'] for env_idx
                  in range(num_scenes)]))
 
-
         _, local_map, _, local_pose, observation_points= \
             sem_map_module(obs, poses, local_map, local_pose, origins, observation_points, goal_cat_id, gl_tree_list, infos, wait_env, args)
+
+
+        # observation_points_3d[:,:3,:] = observation_points[:,:3,:]
+        # for env_idx in range(num_scenes):
+        #     observation_points_3d[env_idx,3,:] = observation_points[env_idx, 3+goal_cat_id[env_idx], :] 
+        # observation_points_3d[:,points_channel_num_3d-2:points_channel_num_3d,:] = observation_points[:,points_channel_num-2:points_channel_num,:]
+
+
 
 
 
@@ -732,13 +770,13 @@ def main():
                     deterministic=False
                 )
 
-            g_value_3d, g_action_3d, g_action_log_prob_3d, g_rec_states_3d = \
-                g_policy.act(
-                    g_rollouts.obs_map[g_step + 1],
-                    g_rollouts.obs_points[g_step + 1],
-                    g_rollouts.rec_states[g_step + 1],
-                    g_rollouts.masks[g_step + 1],
-                    extras=g_rollouts.extras[g_step + 1],
+            g_value_3d, g_action_3d, g_action_log_prob_3d, _ = \
+                g_policy_3d.act(
+                    # g_rollouts.obs_map[g_step + 1],
+                    g_rollouts_3d.obs_points[g_step + 1],
+                    # g_rollouts.rec_states[g_step + 1],
+                    g_rollouts_3d.masks[g_step + 1],
+                    extras=g_rollouts_3d.extras[g_step + 1],
                     deterministic=False
                 )
 
@@ -777,7 +815,7 @@ def main():
         # for e in range(num_scenes):
         #     goal_maps[e][global_goals[e][0], global_goals[e][1]] = 1
 
-        confidence_thres = args.sem_pred_lower_bound + g_action_3d.cpu().numpy()/10 * (1 - args.sem_pred_lower_bound)
+        confidence_thres = args.sem_pred_lower_bound + (g_action_3d.cpu().numpy()-5)/5 * (1 - args.sem_pred_lower_bound)
         # confidence_thres = 0.75
         # import time 
         # t_s = time.time()
@@ -799,7 +837,6 @@ def main():
                     sample_points_tensor = sample_points_tensor[:,:2]
 
                     sample_points_tensor = sample_points_tensor[np.where((sample_points_tensor[:, 0]>=0) & (sample_points_tensor[:, 0]<local_w) & (sample_points_tensor[:, 1]>=0) & (sample_points_tensor[:, 1]<local_h))]
-
 
 
                 if sample_points_tensor is not None and sample_points_tensor.shape[0]>0:
@@ -884,10 +921,10 @@ def main():
 
                 g_next_value_3d = g_policy_3d.get_value(
                     g_rollouts_3d.obs_points[-1],
-                    g_rollouts_3d.rec_states[-1],
-                    g_rollouts_3d.masks[-1],
+                    # g_rollouts_3d.rec_states[-1],
+                    # g_rollouts_3d.masks[-1],
                     extras=g_rollouts_3d.extras[-1]       
-                    )
+                    ).detach()
 
                 g_rollouts_3d.compute_returns(g_next_value_3d, args.use_gae,
                                            args.gamma, args.tau)
@@ -968,6 +1005,7 @@ def main():
                 total_spl = []
                 total_dist = []
                 for e in range(args.num_processes):
+
                     for acc in episode_success[e]:
                         total_success.append(acc)
                     for dist in episode_dist[e]:
@@ -1027,7 +1065,10 @@ def main():
                     (np.mean(g_episode_rewards) >= best_g_reward) \
                     and not args.eval:
                 torch.save(g_policy.state_dict(),
-                           os.path.join(log_dir, "model_best.pth"))
+                           os.path.join(log_dir, "model_best_2d.pth"))
+
+                torch.save(g_policy_3d.state_dict(),
+                           os.path.join(log_dir, "model_best_3d.pth"))
                 best_g_reward = np.mean(g_episode_rewards)
 
         # Save periodic models
@@ -1037,7 +1078,13 @@ def main():
             if not args.eval:
                 torch.save(g_policy.state_dict(),
                            os.path.join(dump_dir,
-                                        "periodic_{}.pth".format(total_steps)))
+                                        "periodic_2d_{}.pth".format(total_steps)))
+
+                torch.save(g_policy_3d.state_dict(),
+                           os.path.join(dump_dir,
+                                        "periodic_3d_{}.pth".format(total_steps)))
+
+
         # ------------------------------------------------------------------
 
     # Print and save model performance numbers during evaluation

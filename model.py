@@ -178,6 +178,8 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         x = self.mlp1(x)
 
         if self.is_recurrent:
+            print("no masks need !")
+            exit(0)
             x, rnn_hxs = self._forward_gru(x, rnn_hxs, masks)
 
         orientation_emb = self.orientation_emb(extras[:, 0])
@@ -269,15 +271,17 @@ class RL_Policy(nn.Module):
 
 class Goal_3D_Policy(NNBase):
     
-    def __init__(self, obs_points_shape,  hidden_size = 1024, num_sem_categories = 6):
+    def __init__(self, obs_points_shape,  hidden_size = 1024, points_channel_num= 12, num_sem_categories = 6):
 
         super(Goal_3D_Policy, self).__init__(
             obs_points_shape, hidden_size, hidden_size)
 
-        self.point_Encoder = PointNetEncoder(global_feat=True,  channel = num_sem_categories)
+        C, N = obs_points_shape
+        print("xxxxxxxx", C)
+        self.point_Encoder = PointNetEncoder(global_feat=True,  channel = C)
 
         self.policy_net = nn.Sequential(
-            nn.Linear(hidden_size + 3 * 8, 512),
+            nn.Linear(1024 + 3 * 8, 512),
             nn.ReLU(),
             nn.Linear(512, 256),
             nn.ReLU()
@@ -296,21 +300,25 @@ class Goal_3D_Policy(NNBase):
         # 3D points information
         args = get_args()
 
-        input_points_ful = input_points.transpose(1, 0)
+        # input_points_ful = input_points.transpose(1, 0)
 
-        points_feature = self.point_Encoder(input_points_ful)
-        
+        points_feature = self.point_Encoder(input_points)
+        # print("zzzzzzzzz", points_feature.shape)
+
+
+
+
         orientation_emb = self.orientation_emb(extras[:, 0])
         goal_emb = self.goal_emb(extras[:, 1])
         time_effe_emb = self.time_emb(extras[:, 2])
 
         x = torch.cat((points_feature, orientation_emb, goal_emb, time_effe_emb), 1)
+        # print("zzzzzzzzz", x.shape)
+
+        x1 = self.policy_net(x)
 
 
-        x = self.policy_net(x)
-
-
-        return self.critic_mlp(x).squeeze(-1), x
+        return self.critic_mlp(x1).squeeze(-1), x1
 
 
 
@@ -358,9 +366,9 @@ class RL_Policy_3D(nn.Module):
         else:
             return self.network(inputs_points, extras)
 
-    def act(self, inputs_map, inputs_points, rnn_hxs, masks, extras=None, deterministic=False):
+    def act(self, inputs_points, masks, extras=None, deterministic=False):
 
-        value, actor_features, rnn_hxs = self(inputs_map, inputs_points, rnn_hxs, masks, extras)
+        value, actor_features = self(inputs_points, extras)
 
         dist = self.dist(actor_features)
 
@@ -371,7 +379,7 @@ class RL_Policy_3D(nn.Module):
 
         action_log_probs = dist.log_probs(action)
 
-        return value, action, action_log_probs, rnn_hxs
+        return value, action, action_log_probs, None
 
     def get_value(self, inputs_points, extras=None):
         value, _ = self(inputs_points, extras)

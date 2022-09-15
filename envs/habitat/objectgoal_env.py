@@ -13,6 +13,8 @@ from constants import coco_categories
 import envs.utils.pose as pu
 
 from constants import get_habitat_labels
+import random
+
 
 class ObjectGoal_Env(habitat.RLEnv):
     """The Object Goal Navigation environment class. The class is responsible
@@ -26,19 +28,40 @@ class ObjectGoal_Env(habitat.RLEnv):
 
         super().__init__(config_env, dataset)
 
+
+
         self.habitat_labels = get_habitat_labels(args.dataset)
 
         # print("=====goals_by_category", dataset.goals_by_category)
-
+        self.config_env = config_env
         # Loading dataset info file
         self.split = config_env.DATASET.SPLIT
         self.episodes_dir = config_env.DATASET.EPISODES_DIR.format(
             split=self.split)
 
-        # dataset_info_file = self.episodes_dir + \
-        #     "{split}_info.pbz2".format(split=self.split)
-        # with bz2.BZ2File(dataset_info_file, 'rb') as f:
-        #     self.dataset_info = cPickle.load(f)
+
+        # episode_total = 0
+
+        # for i in range(len(config_env.DATASET.CONTENT_SCENES)):
+        #     scene_name = config_env.DATASET.CONTENT_SCENES[i]
+
+        #     episodes_file = self.episodes_dir + \
+        #         "content/{}.json.gz".format(scene_name)
+
+        #     print("Loading episodes from: {}".format(episodes_file))
+        #     with gzip.open(episodes_file, 'r') as f:
+        #         eps_data = json.loads(
+        #             f.read().decode('utf-8'))["episodes"]
+        #     print("============= eps_data",len(eps_data))
+            # episode_total += len(eps_data)
+
+        # print("episode_total:", episode_total)
+        # exit(0)
+            # self.eps_data_idx = 0
+            # self.last_scene_path = self.scene_path
+            # print("Changing scene: {}/{}".format(self.rank, self.scene_name))
+
+
 
         # Specifying action and observation space
         self.action_space = gym.spaces.Discrete(3)
@@ -81,6 +104,12 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.info['success'] = None
         self.info['softspl'] = None
         self.info['agent_success'] = None
+        self.info['repeat'] = False
+
+        self.scene_list = []
+
+        self.scene_count = 0
+
 
 
     def load_new_episode(self):
@@ -89,46 +118,44 @@ class ObjectGoal_Env(habitat.RLEnv):
         args = self.args
         self.scene_path = self.habitat_env.sim.config.sim_cfg.scene_id
 
-        scene_name = self.scene_path.split("/")[-1].split(".")[0]
+        self.scene_name = self.scene_path.split("/")[-1].split(".")[0]
 
-        if self.scene_path != self.last_scene_path:
-            episodes_file = self.episodes_dir + \
-                "content/{}.json.gz".format(scene_name)
+        # if self.scene_path != self.last_scene_path:
+        #     episodes_file = self.episodes_dir + \
+        #         "content/{}.json.gz".format(self.scene_name)
 
-            print("Loading episodes from: {}".format(episodes_file))
-            with gzip.open(episodes_file, 'r') as f:
-                self.eps_data = json.loads(
-                    f.read().decode('utf-8'))["episodes"]
+        #     print("Loading episodes from: {}".format(episodes_file))
+        #     with gzip.open(episodes_file, 'r') as f:
+        #         self.eps_data = json.loads(
+        #             f.read().decode('utf-8'))["episodes"]
 
-            self.eps_data_idx = 0
-            self.last_scene_path = self.scene_path
+        #     self.eps_data_idx = 0
+        #     self.last_scene_path = self.scene_path
+        #     print("Changing scene: {}/{}".format(self.rank, self.scene_name))
+
 
         # Load episode info
-        episode = self.eps_data[self.eps_data_idx]
+        # self.episode1 = self.eps_data[int(self.habitat_env.current_episode.episode_id)]
+        self.episode = self.habitat_env.current_episode
+        self.episode_len = len(self.habitat_env.episodes)
 
-        print("episode============", episode)
+        # print("episode============", self.habitat_env.sim.config.sim_cfg)
+        # print("episode============", self.habitat_env.sim.config.sim_cfg.scene_id)
+        print("episode_id ============", self.habitat_env.current_episode.episode_id)
+        print("scene_id ============", self.habitat_env.current_episode.scene_id)
+        print("self.episode_len ============", self.episode_len)
 
-        self.eps_data_idx += 1
-        self.eps_data_idx = self.eps_data_idx % len(self.eps_data)
-        pos = episode["start_position"]
-        rot = episode["start_rotation"]
-        # rot = quaternion.from_float_array(episode["start_rotation"])
+        # episode = self.habitat_env.current_episode.info
+        # print("episode ============", self.habitat_env.current_episode)
 
-        # print("pos", pos)
-        # print("rot", rot)
 
-        goal_name = episode["object_category"]
-        # goal_idx = episode["object_id"]
+        goal_name = self.episode.object_category
         goal_idx = self.habitat_labels[goal_name]
-        # floor_idx = episode["floor_id"]
 
         self.goal_idx = goal_idx
         self.goal_name = goal_name
-        # self.map_obj_origin = map_obj_origin
 
-        # self.starting_distance = self.gt_planner.fmm_dist[self.starting_loc]\
-        #     / 20.0 + self.object_boundary
-        self.starting_distance = episode["info"]["geodesic_distance"]
+        self.starting_distance = self.episode.info["geodesic_distance"]
 
         self.prev_distance = self.starting_distance
 
@@ -144,7 +171,19 @@ class ObjectGoal_Env(habitat.RLEnv):
                          evaluation metric info
         """
         args = self.args
-        new_scene = self.episode_no % args.num_train_episodes == 0
+
+
+        obs = super().reset()
+        self.load_new_episode()
+
+        new_scene = False
+        if self.episode_no == self.episode_len-1:
+            new_scene = True
+            self.episode_no = 0
+
+
+
+        print("self.info['repeat']", self.info['repeat'])
 
         self.episode_no += 1
 
@@ -154,26 +193,18 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.path_length = 1e-5
         self.trajectory_states = []
 
-        # print(">>>>>>>>>", self.habitat_env.sim.config)
 
-
-        obs = super().reset()
-        # print("===========obs", obs)
-        print("================= scene_id", self.habitat_env.sim.config.sim_cfg.scene_id)
-        if new_scene:
-            # self.scene_name = self.habitat_env.sim.config.SCENE
-            self.scene_name = self.habitat_env.sim.config.sim_cfg.scene_id,
-
-            print("Changing scene: {}/{}".format(self.rank, self.scene_name))
+        print("self.scene_count===", self.scene_count)
+        print("self len(self.config_env.DATASET.CONTENT_SCENES)", len(self.config_env.DATASET.CONTENT_SCENES))
 
         self.scene_path = self.habitat_env.sim.config.sim_cfg.scene_id
 
-        # if self.split == "val" or self.split == "val_mini":
-        #     obs = self.load_new_episode()
-        # else:
-        #     obs = self.generate_new_episode()
+        if new_scene:
+            self.scene_count += 1
+            if self.scene_count == len(self.config_env.DATASET.CONTENT_SCENES):
+                self.info['repeat'] = True
+            new_scene = False
 
-        self.load_new_episode()
 
 
         rgb = obs['rgb'].astype(np.uint8)
@@ -207,6 +238,7 @@ class ObjectGoal_Env(habitat.RLEnv):
             info (dict): contains timestep, pose, goal category and
                          evaluation metric info
         """
+        args = self.args
         action = action["action"]
         if action == 0:
             self.stopped = True
@@ -232,7 +264,7 @@ class ObjectGoal_Env(habitat.RLEnv):
             self.info['softspl'] = softspl
             self.info['success'] = success
 
-            if self.timestep<490:
+            if self.timestep < args.max_episode_length-1:
                 self.info['agent_success'] = 1
             # print("dist", dist)
             # print("spl", spl)

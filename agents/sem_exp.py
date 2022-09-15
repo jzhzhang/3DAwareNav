@@ -130,6 +130,12 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
         return obs, info
 
+    def verify_action(self):
+        action = {'action': 0}
+        obs, rew, done, info = super().step(action)
+        super().reset()
+
+
     def plan_act_and_preprocess(self, planner_inputs):
         """Function responsible for planning, taking the action and
         preprocessing observations
@@ -166,18 +172,36 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         action = self._plan(planner_inputs)
         # print("action: ", action)
 
-        if (self.episode_no-1) % 3==0 and (self.args.visualize or self.args.print_images) or (self.episode_no-1) % 9==0 and (self.args.visualize or self.args.print_images):
-            map_img = self._visualize_map(planner_inputs)
+        save_img = (self.args.visualize or self.args.print_images)
+
+        save_final_img = (self.episode_no-1) % 3==0
+
+        save_gif_img = (self.episode_no-1) % 9==0
+
+        if save_img:
+            if save_gif_img:
+                map_img = self._visualize_map(planner_inputs)
+                self._visualize_gif(map_img, action)
+
+            if save_final_img:
+                    if (self.timestep == self.args.max_episode_length-1 or action == 0):
+                        map_img = self._visualize_map(planner_inputs)
+                        self._visualize_img(map_img, action)
+
+
+
+        # if  ((self.episode_no-1) % 9==0 and (self.args.visualize or self.args.print_images)) or ((self.episode_no-1) % 3==0 and (self.timestep == 499 or action == 0)) and (self.args.visualize or self.args.print_images):
+        #     map_img = self._visualize_map(planner_inputs)
 
             
-        # save final img every 3 eps
-        if (self.episode_no-1) % 3==0 and (self.args.visualize or self.args.print_images) and ( self.timestep == 499 or action == 0) :
-            self._visualize_img(map_img, action)
+        # # save final img every 3 eps
+        # if (self.episode_no-1) % 3==0 and ( self.timestep == 499 or action == 0) and (self.args.visualize or self.args.print_images) :
+        #     self._visualize_img(map_img, action)
 
 
-        # save gif every 50 eps
-        if (self.episode_no-1) % 9==0 and (self.args.visualize or self.args.print_images) :
-            self._visualize_gif(map_img, action)
+        # # save gif every 50 eps
+        # if (self.episode_no-1) % 9==0 and (self.args.visualize or self.args.print_images) :
+        #     self._visualize_gif(map_img, action)
 
 
         self.info['timestep'] = self.timestep
@@ -188,6 +212,10 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
             # act
             action = {'action': action}
+            # action = {'action': 0}
+
+
+
             obs, rew, done, info = super().step(action)
 
             # preprocess obs

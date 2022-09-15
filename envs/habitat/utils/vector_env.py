@@ -51,6 +51,9 @@ ACTION_SPACE_COMMAND = "action_space"
 CALL_COMMAND = "call"
 EPISODE_COMMAND = "current_episode"
 PLAN_ACT_AND_PREPROCESS = "plan_act_and_preprocess"
+VERIFY_ACTION = "verify_action"
+
+
 COUNT_EPISODES_COMMAND = "count_episodes"
 EPISODE_OVER = "episode_over"
 GET_METRICS = "get_metrics"
@@ -236,6 +239,10 @@ class VectorEnv:
                     result = env.get_metrics()
                     connection_write_fn(result)
 
+                elif command == VERIFY_ACTION:
+                    result = env.verify_action()
+                    connection_write_fn(result)
+
                 else:
                     raise NotImplementedError
 
@@ -315,6 +322,16 @@ class VectorEnv:
         self._is_waiting = True
         for write_fn in self._connection_write_fns:
             write_fn((GET_METRICS, None))
+        results = []
+        for read_fn in self._connection_read_fns:
+            results.append(read_fn())
+        self._is_waiting = False
+        return results
+
+    def verify_action(self):
+        self._is_waiting = True
+        for write_fn in self._connection_write_fns:
+            write_fn((VERIFY_ACTION, None))
         results = []
         for read_fn in self._connection_read_fns:
             results.append(read_fn())

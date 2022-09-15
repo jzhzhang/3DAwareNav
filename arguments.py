@@ -67,9 +67,20 @@ def get_args():
 						help='experiment name (default: exp1)')
 	parser.add_argument('--save_periodic', type=int, default=500000,
 						help='Model save frequency in number of updates')
-	parser.add_argument('--load', type=str, default="0",
+
+	# parser.add_argument('--load', type=str, default="0",
+	# 					help="""model path to load,
+	# 							0 to not reload (default: 0)""")
+
+	parser.add_argument('--load_2d', type=str, default="0",
 						help="""model path to load,
 								0 to not reload (default: 0)""")
+
+	parser.add_argument('--load_3d', type=str, default="0",
+						help="""model path to load,
+								0 to not reload (default: 0)""")
+
+
 	parser.add_argument('-v', '--visualize', type=int, default=0,
 						help="""1: Render the observation and
 								   the predicted semantic map,
@@ -90,6 +101,10 @@ def get_args():
 						help='Frame height (default:120)')
 	parser.add_argument('-el', '--max_episode_length', type=int, default=500,
 						help="""Maximum episode length""")
+	# parser.add_argument('-el', '--max_episode_length', type=int, default=400,
+	# 					help="""Maximum episode length""")
+
+
 	# parser.add_argument("--task_config", type=str,
 	#					 default="tasks/objectnav_gibson.yaml",
 	#					 help="path to config yaml containing task information")
@@ -165,7 +180,7 @@ def get_args():
 						help='value loss coefficient (default: 0.5)')
 	parser.add_argument('--max_grad_norm', type=float, default=0.5,
 						help='max norm of gradients (default: 0.5)')
-	parser.add_argument('--num_global_steps', type=int, default=20,
+	parser.add_argument('--num_global_steps', type=int, default=25,
 						help='number of forward steps in A2C (default: 5)')
 	parser.add_argument('--ppo_epoch', type=int, default=4,
 						help='number of ppo epochs (default: 4)')
@@ -185,8 +200,8 @@ def get_args():
 	# parser.add_argument('--num_sem_categories', type=float, default=7)
 	# parser.add_argument('--sem_pred_prob_thr', type=float, default=0.4,
 	# 					help="Semantic prediction confidence threshold")
-	# parser.add_argument('--sem_pred_lower_bound', type=float, default=0.4,
-	# 					help="Semantic prediction confidence threshold")
+	parser.add_argument('--sem_pred_lower_bound', type=float, default=0.75,
+						help="Semantic prediction confidence threshold")
 
 
 	# Mapping

@@ -53,5 +53,11 @@ class VecPyTorch():
         reward = torch.from_numpy(reward).float()
         return obs, reward, done, info
 
+    def verify_action(self):
+        self.venv.verify_action()
+        # obs = torch.from_numpy(obs).float().to(self.device)
+        # reward = torch.from_numpy(reward).float()
+        # return obs, reward, done, info
+
     def close(self):
         return self.venv.close()

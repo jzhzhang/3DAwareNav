@@ -30,8 +30,6 @@ class point3D:
 
 
         self.seg_prob_fused = np.ones(num_sem_categories, dtype=float)
-        self.seg_prob_fused_max = np.ones(num_sem_categories, dtype=float)
-
         self.label_thres = 0.0
 
         self.kl_div = 0.0
@@ -62,11 +60,10 @@ class point3D:
         
         #--------------- MAX Fusion ---------------#
         if self.label == -1: #init
-            self.seg_prob_fused, self.seg_prob_fused_max = point_seg.reshape(-1)
-            #  = point_seg.reshape(-1)
+            self.seg_prob_fused = point_seg.reshape(-1)
         else: #update
-            self.seg_prob_fuseg_prob_fused_maxsed = np.maximum(self.seg_prob_fused_max, point_seg.reshape(-1))
-            self.seg_prob_fused = self.seg_prob_fused_max / np.sum(self.seg_prob_fused_max) # Normalization
+            self.seg_prob_fused = np.maximum(self.seg_prob_fused, point_seg.reshape(-1))
+            self.seg_prob_fused /= np.sum(self.seg_prob_fused) # Normalization
         
         self.label = np.argmax(self.seg_prob_fused)
         #--------------- MAX Fusion ---------------#
@@ -573,6 +570,7 @@ class GL_tree:
             ply_file.write(str(points_coor[ 0]) + " " +
                         str(points_coor[1]) + " " +
                         str(points_coor[2]))
+
 
             label_id = points_list[i].label+5
             label_id = label_id if label_id<11 else 1
