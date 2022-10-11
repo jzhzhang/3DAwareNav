@@ -219,6 +219,8 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.info['goal_cat_id'] = self.goal_idx
         self.info['goal_name'] = self.goal_name
         self.info['scene_id'] = self.habitat_env.sim.config.sim_cfg.scene_id
+        self.info['episode_id'] = self.habitat_env.sim.config.sim_cfg.episode_id
+
         # self.info['episode_idx'] = self. 
 
         return state, self.info

@@ -19,27 +19,6 @@ import time
 # 3DV
 
 '''
-    # another method
-    for i in range(input_points.shape[0]) : # number of agent 
-        for p in range(input_points.shape[2]) : # number of point (4096)
-            #print(type(input_points[i,10,p].item()))
-            if int(input_points[i,0,p]) == -360 and int(input_points[i,1,p]) == -360 :
-                break
-            if int(input_points[i,0,p]) < 0 or int(input_points[i,0,p]) >= 240 or \
-                int(input_points[i,1,p]) < 0 or int(input_points[i,1,p]) >= 240 :
-                continue
-            points_map[i, 0, int(input_points[i,0,p]), int(input_points[i,1,p])] += input_points[i,10,p].item()
-            points_map_cnt[i, 0, int(input_points[i,0,p]), int(input_points[i,1,p])] += 1.
-    save_KLdiv("./tmp/points/map1/time_{0}.png".format(str(time.time()).replace('.','')), points_map)
-    points_map = torch.div(points_map, points_map_cnt)
-    points_map = torch.where(torch.isnan(points_map), torch.full_like(points_map, 0), points_map)
-    torch.set_printoptions(profile="full")
-    with open("./tmp/points/map1/time_{0}.txt".format(str(time.time()).replace('.','')), "w") as external_file:
-        print(points_map, file=external_file)
-        external_file.close()
-    torch.set_printoptions(profile="default")
-'''
-
 class Goal_Oriented_Semantic_Policy(NNBase):
 
     def __init__(self, input_map_shape, input_points_shape, recurrent = False, hidden_size = 256,
@@ -190,6 +169,70 @@ class Goal_Oriented_Semantic_Policy(NNBase):
         x = self.mlp2(x)
         
         return self.critic_mlp(x).squeeze(-1), x, rnn_hxs
+'''
+
+class Goal_Oriented_Semantic_Policy(NNBase):
+
+    def __init__(self, input_map_shape, input_points_shape, recurrent=False, hidden_size=512,
+                 num_sem_categories=6):
+        super(Goal_Oriented_Semantic_Policy, self).__init__(
+            recurrent, hidden_size, hidden_size)
+
+        out_size = int(input_map_shape[1] / 16.) * int(input_map_shape[2] / 16.)
+        
+        self.map_conv = nn.Sequential(
+            nn.MaxPool2d(2),
+            nn.Conv2d(num_sem_categories + 8, 32, 3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, 3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(128, 64, 3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(64, 32, 3, stride=1, padding=1),
+            nn.ReLU(),
+            Flatten()
+        )
+        self.map_compress = nn.Linear(out_size * 32, 512)
+        
+        self.point_encoder = PointNetEncoder(global_feat=True,  \
+                                             channel = num_sem_categories + 5)
+        self.point_compress = nn.Linear(1024, 512)
+
+        self.orientation_emb = nn.Embedding(72, 8)
+        self.goal_emb = nn.Embedding(num_sem_categories, 8)
+        self.time_emb = nn.Embedding(500, 8)
+
+        self.linear1 = nn.Linear(512 + 512 + 8 * 3, hidden_size)
+        self.linear2 = nn.Linear(hidden_size, 256)
+        self.critic_linear = nn.Linear(256, 1)
+
+        self.train()
+
+    def forward(self, inputs_map, input_points, rnn_hxs, masks, extras):
+        
+        map_x = self.map_conv(inputs_map)
+        map_x = self.map_compress(map_x)
+        
+        points_x = self.point_encoder(input_points)
+        points_x = self.point_compress(points_x)
+
+        orien_emb = self.orientation_emb(extras[:, 0])
+        goal_emb = self.goal_emb(extras[:, 1])
+        time_emb = self.time_emb(extras[:, 2])
+
+        x = torch.cat((map_x, points_x, orien_emb, goal_emb, time_emb), 1)
+
+        x = nn.ReLU()(self.linear1(x))
+        if self.is_recurrent:
+            x, rnn_hxs = self._forward_gru(x, rnn_hxs, masks)
+        x = nn.ReLU()(self.linear2(x))
+
+        return self.critic_linear(x).squeeze(-1), x, rnn_hxs
 
 
 # https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail/blob/master/a2c_ppo_acktr/model.py#L15

@@ -112,6 +112,7 @@ def construct_envs(args):
                 sum(scene_split_sizes[:i]):
                 sum(scene_split_sizes[:i + 1])
             ]
+
             # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             # config_env.DATASET.CONTENT_SCENES = scenes[:2]
             # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
