@@ -47,6 +47,6 @@ TASK:
 DATASET:
   TYPE: ObjectNav-v1
   SPLIT: train
-  DATA_PATH: "data/objectnav_mp3d_v1/{split}/{split}.json.gz"
-  SCENES_DIR: "data/data/scene_datasets/"
-  EPISODES_DIR: "data/objectnav_mp3d_v1/{split}/"
+  DATA_PATH: "data/episode_datasets/objectnav_mp3d_v1/{split}/{split}.json.gz"
+  SCENES_DIR: "data/scene_datasets/"
+  EPISODES_DIR: "data/episode_datasets/objectnav_mp3d_v1/{split}/"

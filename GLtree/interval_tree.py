@@ -25,7 +25,6 @@ class Node:
         self.left = left
         self.right = right
         self.isEdge=isEdge
-        # self.set_list=[set(),None,None]
         self.set_list=[set(),set(),set()]
 
     def __repr__(self):
@@ -187,10 +186,8 @@ class RedBlackTree:
                 last_found_val = node.value
                 return node.value
             elif node.value < value:
-                # go right
                 return find_ceil(node.right)
             else:
-                # this node is bigger, save its value and go left
                 last_found_val = node.value
 
                 return find_ceil(node.left)

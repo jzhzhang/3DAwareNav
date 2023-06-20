@@ -4,8 +4,7 @@ import torch
 
 
 def get_args():
-	parser = argparse.ArgumentParser(
-		description='Goal-Oriented-Semantic-Exploration')
+	parser = argparse.ArgumentParser()
 
 	# General Arguments
 	parser.add_argument('--seed', type=int, default=1,
@@ -30,24 +29,19 @@ def get_args():
 	# GPU Configuration
 	parser.add_argument('--no_cuda', action='store_true', default=False,
 						help='disables CUDA training')
-	parser.add_argument("--sim_gpu_id", type=str, default="1,1,1,2,2,2",
+	parser.add_argument("--sim_gpu_id", type=str, default="4",
 						help="gpu id on which scenes are loaded")
 	
-	parser.add_argument("--sem_gpu_id_list", type=str, default="0,1",
+	parser.add_argument("--sem_gpu_id_list", type=str, default="4",
                         help="""gpu id list for semantic models,
                                 -1: same as sim gpu, -2: cpu""")
 
-	parser.add_argument("--sem_gpu_id", type=str, default="cuda:2",
-						help="""gpu id for semantic model,
-								-1: same as sim gpu, -2: cpu""")
-	parser.add_argument("--policy_gpu_id", type=str, default="cuda:0",
+	parser.add_argument("--policy_gpu_id", type=str, default="cuda:5",
 						help="""policy gpu id for policy""")
 
 	# Module Configuration
-	parser.add_argument("--backbone_2d", type=str, default="maskrcnn",
+	parser.add_argument("--backbone_2d", type=str, default="rednet",
 						help="""2d_backbone  maskrcnn/rednet""")
-	parser.add_argument("--stop_policy", type=str, default="2D",
-						help="""stop policy 2D/3D""")
 	parser.add_argument('--deactivate_klmap', action='store_true', default=False, 
 						help="""deactivate KL divergency map True/False""")
 	parser.add_argument('--deactivate_entropymap', action='store_true', default=False, 
@@ -68,15 +62,13 @@ def get_args():
 	parser.add_argument('--save_periodic', type=int, default=500000,
 						help='Model save frequency in number of updates')
 
-	# parser.add_argument('--load', type=str, default="0",
-	# 					help="""model path to load,
-	# 							0 to not reload (default: 0)""")
 
-	parser.add_argument('--load_2d', type=str, default="0",
+
+	parser.add_argument('--load_explore', type=str, default="0",
 						help="""model path to load,
 								0 to not reload (default: 0)""")
 
-	parser.add_argument('--load_3d', type=str, default="0",
+	parser.add_argument('--load_identify', type=str, default="0",
 						help="""model path to load,
 								0 to not reload (default: 0)""")
 
@@ -101,35 +93,23 @@ def get_args():
 						help='Frame height (default:120)')
 	parser.add_argument('-el', '--max_episode_length', type=int, default=500,
 						help="""Maximum episode length""")
-	# parser.add_argument('-el', '--max_episode_length', type=int, default=400,
-	# 					help="""Maximum episode length""")
 
-
-	# parser.add_argument("--task_config", type=str,
-	#					 default="tasks/objectnav_gibson.yaml",
-	#					 help="path to config yaml containing task information")
 
 	# dataset
 
 	parser.add_argument("--dataset", type=str, default="hm3d", 
 					help="path to config yaml containing task information")
 
-	# parser.dataset("--dataset", type=str, default="mp3d", 
-	# 				help="path to config yaml containing task information")
+
 
 	parser.add_argument("--task_config", type=str,
 						default="tasks/challenge_objectnav2022.local.rgbd.yaml",
 						help="path to config yaml containing task information")
 
-	# parser.add_argument("--task_config", type=str,
-	#					 default="tasks/challenge_objectnav2021.local.rgbd.yaml",
-	#					 help="path to config yaml containing task information")
+
 
 	parser.add_argument('--num_sem_categories', type=int, default=7)
-	# parser.add_argument('--sem_pred_prob_thr', type=float, default=0.4,
-	# 					help="Semantic prediction confidence threshold")
-	# parser.add_argument('--sem_pred_lower_bound', type=float, default=0.4,
-	# 					help="Semantic prediction confidence threshold")
+
 
 
 
@@ -197,9 +177,6 @@ def get_args():
 	parser.add_argument('--intrinsic_rew_coeff', type=float, default=0.02,
 						help="intrinsic exploration reward coefficient")
 
-	# parser.add_argument('--num_sem_categories', type=float, default=7)
-	# parser.add_argument('--sem_pred_prob_thr', type=float, default=0.4,
-	# 					help="Semantic prediction confidence threshold")
 	parser.add_argument('--sem_pred_lower_bound', type=float, default=0.75,
 						help="Semantic prediction confidence threshold")
 
@@ -213,7 +190,6 @@ def get_args():
 	parser.add_argument('--map_point_size', type=int, default=4096) 
 
 	# weight of semantic models
-	parser.add_argument("--semantic_weight", type=str, default="./weight/model_final_c10459.pkl")
 	parser.add_argument('--checkpt', type=str, default="./weight/rednet_semmap_mp3d_tuned.pth", 
 						help='path to rednet models')
 
@@ -224,8 +200,6 @@ def get_args():
 
 	# GL tree
 	parser.add_argument('--point_size', type=int, default=512)
-	# parser.add_argument('--min_octree_threshold', type=float, default=0.08)
-	# parser.add_argument('--max_octree_threshold', type=float, default=0.15)
 	parser.add_argument('--min_octree_threshold', type=float, default=4)
 	parser.add_argument('--max_octree_threshold', type=float, default=15)
 	parser.add_argument('--interval_size', type=float, default=20)

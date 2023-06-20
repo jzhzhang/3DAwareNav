@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from torch_scatter import scatter
 import numpy as np
 import cv2
 from utils.distributions import Categorical, DiagGaussian
@@ -13,169 +12,13 @@ from utils.img_save import save_semantic, save_KLdiv
 from arguments import get_args
 
 import os
-import time
-# from pytorch3d.ops import sample_farthest_points
 
-# 3DV
 
-'''
-class Goal_Oriented_Semantic_Policy(NNBase):
-
-    def __init__(self, input_map_shape, input_points_shape, recurrent = False, hidden_size = 256,
-                 num_sem_categories = 6):
-        super(Goal_Oriented_Semantic_Policy, self).__init__(
-            recurrent, hidden_size, hidden_size)
-
-        self.in_size_x = input_map_shape[1]
-        self.in_size_y = input_map_shape[2]
-        self.out_size_x = int(self.in_size_x / 16.) 
-        self.out_size_y = int(self.in_size_y / 16.)
-
-        self.layer_attached = 0
-        args = get_args()
-        if args.deactivate_klmap == False :
-            self.layer_attached += 1
-        if args.deactivate_entropymap == False :
-            self.layer_attached += 1
-        
-        self.policy_net = nn.Sequential(
-            nn.MaxPool2d(2),
-            nn.Conv2d(num_sem_categories + 8 + self.layer_attached, 32, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(128, 256, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(256, 128, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(128, 64, 3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(64, 32, 3, stride=1, padding=1),
-            nn.ReLU(),
-            Flatten()
-        )
-
-        self.mlp1 = nn.Sequential(
-            nn.Linear(self.out_size_x * self.out_size_y * 32, hidden_size),
-            nn.ReLU()
-        )
-        self.mlp2 = nn.Sequential(
-            nn.Linear(hidden_size + 3 * 8, 256),
-            nn.ReLU()
-        )
-        self.orientation_emb = nn.Embedding(72, 8)
-        self.goal_emb = nn.Embedding(num_sem_categories, 8)
-        self.time_emb = nn.Embedding(500, 8)
-
-        self.critic_mlp = nn.Linear(256, 1)
-
-        self.train()
-
-    def forward(self, inputs_map, input_points, rnn_hxs, masks, extras):
-        # T1 = time.time()
-        # batch size
-        bs = inputs_map.shape[0]
-
-        x = inputs_map
-
-        # 3D points information
-        args = get_args()
-
-        # KL_Divergency Map
-        if args.deactivate_klmap == False :
-            points_map = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float).to(x.device)
-            for p in range(bs) :
-                # filter the point
-                input_points_ful = input_points[p].transpose(1, 0)
-                input_points_ful = input_points_ful[ torch.where( (input_points_ful[:, 0] >= 0) & \
-                    (input_points_ful[:, 0] < self.in_size_x) & (input_points_ful[:, 1] >= 0) & \
-                    (input_points_ful[:, 1] < self.in_size_y) )]
-                
-                # get the index
-                input_points_pos = input_points_ful[:, :2].long()
-                points_map_index = input_points_pos[:, 1] * int(self.in_size_y) + input_points_pos[:, 0]        
-                point_cnt = torch.count_nonzero(points_map_index).item()
-                if point_cnt == 0 :
-                    continue
-                
-                # get the value
-                points_map_value = input_points_ful[:, -2].clamp(max=1.0)#.reshape(input_points_ful.shape[0])
-
-                # scatter the value and normalization
-                points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
-                points_map_tmp_extend = torch.zeros([self.in_size_x * self.in_size_y - points_map_tmp.shape[0]], \
-                    dtype=torch.float).to(points_map_tmp.device)
-                points_map_tmp = torch.cat((points_map_tmp, points_map_tmp_extend), 0).reshape(1, self.in_size_x, self.in_size_y)
-
-                points_map[p, 0] = points_map_tmp
-            
-            x = torch.cat((x, points_map), 1)
-        
-        # Entropy Map
-        if args.deactivate_entropymap == False :
-            points_map = torch.zeros([inputs_map.shape[0], 1, self.in_size_x, self.in_size_y], dtype=torch.float).to(x.device)
-            for p in range(bs) :
-                # filter the point
-                input_points_ful = input_points[p].transpose(1, 0)
-                input_points_ful = input_points_ful[ torch.where( (input_points_ful[:, 0] >= 0) & \
-                    (input_points_ful[:, 0] < self.in_size_x) & (input_points_ful[:, 1] >= 0) & \
-                    (input_points_ful[:, 1] < self.in_size_y) )]
-                
-                # get the index
-                input_points_pos = input_points_ful[:, :2].long()
-                points_map_index = input_points_pos[:, 1] * int(self.in_size_y) + input_points_pos[:, 0]        
-                point_cnt = torch.count_nonzero(points_map_index).item()
-                if point_cnt == 0 :
-                    continue
-                
-                # get the value
-                points_map_value = input_points_ful[:, -1]#.reshape(input_points_ful.shape[0])
-
-                # scatter the value and normalization
-                points_map_tmp = scatter(points_map_value, points_map_index, dim=0, reduce='mean')
-                points_map_tmp_extend = torch.zeros([self.in_size_x * self.in_size_y - points_map_tmp.shape[0]], \
-                    dtype=torch.float).to(points_map_tmp.device)
-                points_map_tmp = torch.cat((points_map_tmp, points_map_tmp_extend), 0).reshape(1, self.in_size_x, self.in_size_y)
-
-                points_map[p, 0] = points_map_tmp
-            
-            x = torch.cat((x, points_map), 1)
-        
-        # T2 = time.time()
-        # time1 = (T2-T1)*1000
-        # print("run time1: "+str(time1)+" ms")
-
-        # policy net
-        x = self.policy_net(x)
-
-        # GRU module (deactive) & other information embedding
-        x = self.mlp1(x)
-
-        if self.is_recurrent:
-            print("no masks need !")
-            exit(0)
-            x, rnn_hxs = self._forward_gru(x, rnn_hxs, masks)
-
-        orientation_emb = self.orientation_emb(extras[:, 0])
-        goal_emb = self.goal_emb(extras[:, 1])
-        time_effe_emb = self.time_emb(extras[:, 2])
-        x = torch.cat((x, orientation_emb, goal_emb, time_effe_emb), 1)
-        
-        x = self.mlp2(x)
-        
-        return self.critic_mlp(x).squeeze(-1), x, rnn_hxs
-'''
-
-class Goal_Oriented_Semantic_Policy(NNBase):
+class Explore_Network(NNBase):
 
     def __init__(self, input_map_shape, input_points_shape, recurrent=False, hidden_size=512,
                  num_sem_categories=6):
-        super(Goal_Oriented_Semantic_Policy, self).__init__(
+        super(Explore_Network, self).__init__(
             recurrent, hidden_size, hidden_size)
 
         out_size = int(input_map_shape[1] / 16.) * int(input_map_shape[2] / 16.)
@@ -236,17 +79,17 @@ class Goal_Oriented_Semantic_Policy(NNBase):
 
 
 # https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail/blob/master/a2c_ppo_acktr/model.py#L15
-class RL_Policy(nn.Module):
+class RL_Explore_Policy(nn.Module):
 
     def __init__(self, obs_map_shape, obs_points_shape, action_space, model_type=0,
                  base_kwargs=None):
 
-        super(RL_Policy, self).__init__()
+        super(RL_Explore_Policy, self).__init__()
         if base_kwargs is None:
             base_kwargs = {}
 
         if model_type == 1:
-            self.network = Goal_Oriented_Semantic_Policy(
+            self.network = Explore_Network(
                 obs_map_shape, obs_points_shape, **base_kwargs)
         else:
             raise NotImplementedError
@@ -280,12 +123,7 @@ class RL_Policy(nn.Module):
     def act(self, inputs_map, inputs_points, rnn_hxs, masks, extras=None, deterministic=False):
 
         value, actor_features, rnn_hxs = self(inputs_map, inputs_points, rnn_hxs, masks, extras)
-        #torch.set_printoptions(profile='full')
-        #print("actor:", actor_features)
-        #print(actor_features.shape)
-        #torch.set_printoptions(profile='default')
         dist = self.dist(actor_features)
-        #print(type(dist))
 
         if deterministic:
             action = dist.mode()
@@ -312,15 +150,14 @@ class RL_Policy(nn.Module):
 
 
 
-class Goal_3D_Policy(NNBase):
+class Identify_Network(NNBase):
     
     def __init__(self, obs_points_shape,  hidden_size = 1024, points_channel_num= 12, num_sem_categories = 6):
 
-        super(Goal_3D_Policy, self).__init__(
+        super(Identify_Network, self).__init__(
             obs_points_shape, hidden_size, hidden_size)
 
         C, N = obs_points_shape
-        print("xxxxxxxx", C)
         self.point_Encoder = PointNetEncoder(global_feat=True,  channel = C)
 
         self.policy_net = nn.Sequential(
@@ -340,23 +177,13 @@ class Goal_3D_Policy(NNBase):
 
     def forward(self, input_points, extras):
 
-        # 3D points information
         args = get_args()
-
-        # input_points_ful = input_points.transpose(1, 0)
-
         points_feature = self.point_Encoder(input_points)
-        # print("zzzzzzzzz", points_feature.shape)
-
-
-
-
         orientation_emb = self.orientation_emb(extras[:, 0])
         goal_emb = self.goal_emb(extras[:, 1])
         time_effe_emb = self.time_emb(extras[:, 2])
 
         x = torch.cat((points_feature, orientation_emb, goal_emb, time_effe_emb), 1)
-        # print("zzzzzzzzz", x.shape)
 
         x1 = self.policy_net(x)
 
@@ -366,19 +193,19 @@ class Goal_3D_Policy(NNBase):
 
 
 # https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail/blob/master/a2c_ppo_acktr/model.py#L15
-class RL_Policy_3D(nn.Module):
+class RL_Identify_Policy(nn.Module):
 
     def __init__(self, obs_points_shape, action_space, model_type=0,
                  base_kwargs=None):
 
-        super(RL_Policy_3D, self).__init__()
+        super(RL_Identify_Policy, self).__init__()
 
         
         if base_kwargs is None:
             base_kwargs = {}
 
         if model_type == 1:
-            self.network = Goal_3D_Policy(
+            self.network = Identify_Network(
                 obs_points_shape, **base_kwargs)
         else:
             raise NotImplementedError
@@ -487,26 +314,13 @@ class Semantic_Mapping(nn.Module):
             self.screen_h // self.du_scale * self.screen_w // self.du_scale
         ).float().to(self.device)
 
-        # logging information ##############################
-        # self.mapping_infos=[]
-        # for _ in range(args.num_processes):
-        #     m_info = dict()
-        #     m_info["timestep"] = 0
-        #     m_info["seq_num"] = 0
-        #     self.mapping_infos.append(m_info)
-
 
 
 
     def forward(self, obs, pose_obs, maps_last, poses_last, origins, observation_points, goal_cat_id, gl_tree_list, infos, wait_env, args):
 
-        # print(wait_env)
-
         bs, c, h, w = obs.size()
         depth = obs[:, 3, :, :]
-
-
-        # depth[depth>500] =0
 
         point_cloud_t = du.get_point_cloud_from_z_t(
             depth, self.camera_matrix, self.device, scale=self.du_scale)
@@ -537,8 +351,6 @@ class Semantic_Mapping(nn.Module):
         XYZ_cm_std[..., 2] = (XYZ_cm_std[..., 2] -
                               (max_h + min_h) // 2.) / (max_h - min_h) * 2.
 
-        # print("sem", obs[:, 4:4+(self.num_sem_categories), :, :])
-
         self.feat[:, 1:, :] = nn.AvgPool2d(self.du_scale)(
             obs[:, 4:4+(self.num_sem_categories), :, :]
         ).view(bs, self.num_sem_categories, h // self.du_scale * w // self.du_scale)
@@ -550,8 +362,6 @@ class Semantic_Mapping(nn.Module):
 
         voxels = du.splat_feat_nd(
             self.init_grid * 0., self.feat, XYZ_cm_std).transpose(2, 3)
-
-        # print("voxels", voxels.shape)
 
 
         min_z = int(25 / z_resolution - min_h)
@@ -608,7 +418,6 @@ class Semantic_Mapping(nn.Module):
 
         current_poses = get_new_pose_batch(poses_last, corrected_pose)
         st_pose = current_poses.clone().detach()
-        # print("st_pose0: ", current_poses)
 
         st_pose[:, :2] = - (st_pose[:, :2]
                             * 100.0 / self.resolution
@@ -616,7 +425,6 @@ class Semantic_Mapping(nn.Module):
             (self.map_size_cm // (self.resolution * 2))
         st_pose[:, 2] = 90. - (st_pose[:, 2])
 
-        # print("st_pose1: ", st_pose)
 
         rot_mat, trans_mat = get_grid(st_pose, agent_view.size(),
                                       self.device)
@@ -632,18 +440,8 @@ class Semantic_Mapping(nn.Module):
 
         goal_maps = torch.zeros([bs, 1, 240, 240],dtype=float)
 
-        import time
         for e in range(bs):
-            # if str(infos[e]["episode_no"]) not in ['7']:
-            #     continue
-            #if str(infos[e]["episode_no"]) == '14':
-            #     print(cut)
-            #if str(infos[e]["episode_no"]) == '10':
-            #     exit(0)
-            # if wait_env[e]:
-            #     continue
-
-            time_s = time.time()
+            
 
             world_view_t = du.transform_pose_t2(
                 agent_view_t_3d[e,...], points_pose[e,...].cpu().numpy(), self.device).reshape(-1,3)
@@ -657,7 +455,6 @@ class Semantic_Mapping(nn.Module):
             non_zero_row = non_zero_row_1 & non_zero_row_2 & non_zero_row_3
             world_view_sem = world_view_sem_t[non_zero_row].cpu().numpy()
 
-            # print("world_view_sem", world_view_sem.shape)
             if world_view_sem.shape[0] <50:
                 continue
 
@@ -688,27 +485,6 @@ class Semantic_Mapping(nn.Module):
             sample_points_tensor[:,:3] = sample_points_tensor[:,:3] / args.map_resolution
 
             observation_points[e] = sample_points_tensor.transpose(1, 0)
-
-
-
-            #======================= visualize =====================
-            # points_dir = 'tmp/points/{}/episodes/thread_{}/eps_{}/'.format(
-            #     args.exp_name, infos[e]['rank'], infos[e]["episode_no"])
-
-            # os.makedirs(points_dir,exist_ok=True)
-
-            # cv2.imwrite(points_dir+"rank_{0}_eps_{1}_step_{2}_mask.png".format(infos[e]['rank'], infos[e]['episode_no'], infos[e]["timestep"]), mask_map)
-
-
-            # write_ply_xyz(sample_points_tensor.cpu().numpy(), points_dir+"rank_{0}_eps_{1}_step_{2}_xyz.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]) )
-            # gl_tree.node_to_points_label_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_label.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
-
-            # gl_tree.node_to_points_prob_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_prob.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
-
-            #gl_tree.node_to_points_kl_ply(points_dir+"rank_{0}_eps_{1}_step_{2}_kldiv.ply".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), scene_nodes)
-
-            #sem_obs = obs[e, 4:4+(self.num_sem_categories), :, :].permute(1, 2, 0).cpu().numpy()
-            #save_KLdiv(points_dir+"rank_{0}_eps_{1}_step_{2}.png".format(infos[e]['rank'], infos[e]["episode_no"], infos[e]["timestep"]), sem_obs)
 
 
         maps2 = torch.cat((maps_last.unsqueeze(1), translated.unsqueeze(1)), 1)

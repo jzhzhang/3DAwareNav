@@ -8,7 +8,6 @@ from torchvision import transforms
 
 from envs.utils.fmm_planner import FMMPlanner
 from envs.habitat.objectgoal_env import ObjectGoal_Env
-from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from constants import color_palette
 import envs.utils.pose as pu
 import agents.utils.visualization as vu
@@ -67,9 +66,6 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         
         if args.sem_gpu_id == -1:
             args.sem_gpu_id = config_env.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID
-
-        if args.backbone_2d == "maskrcnn":
-            self.sem_pred_model = SemanticPredMaskRCNN(args)
 
         if args.backbone_2d == "rednet":
             self.sem_pred_model = SemanticPredRedNet(args)
@@ -158,79 +154,35 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         """
 
 
-
         # plan
         if planner_inputs["wait"]:
             self.last_action = None
             self.info["sensor_pose"] = [0., 0., 0.]
             return np.zeros(self.obs.shape), 0., False, self.info
 
-        # Reset reward if new long-term goal
         if planner_inputs["new_goal"]:
             self.info["g_reward"] = 0
 
         action = self._plan(planner_inputs)
-        # print("action: ", action)
-
-        save_img = (self.args.visualize or self.args.print_images)
-
-        save_final_img = (self.episode_no-1) % 3==0
-
-        save_gif_img = (self.episode_no-1) % 9==0
-
-        if save_img:
-            if save_gif_img:
-                map_img = self._visualize_map(planner_inputs)
-                self._visualize_gif(map_img, action)
-
-            if save_final_img:
-                    if (self.timestep == self.args.max_episode_length-1 or action == 0):
-                        map_img = self._visualize_map(planner_inputs)
-                        self._visualize_img(map_img, action)
 
 
-
-        # if  ((self.episode_no-1) % 9==0 and (self.args.visualize or self.args.print_images)) or ((self.episode_no-1) % 3==0 and (self.timestep == 499 or action == 0)) and (self.args.visualize or self.args.print_images):
-        #     map_img = self._visualize_map(planner_inputs)
-
-            
-        # # save final img every 3 eps
-        # if (self.episode_no-1) % 3==0 and ( self.timestep == 499 or action == 0) and (self.args.visualize or self.args.print_images) :
-        #     self._visualize_img(map_img, action)
-
-
-        # # save gif every 50 eps
-        # if (self.episode_no-1) % 9==0 and (self.args.visualize or self.args.print_images) :
-        #     self._visualize_gif(map_img, action)
-
+        if self.args.visualize or self.args.print_images:
+            map_img = self._visualize_map(planner_inputs)
+            self._visualize_gif(map_img, action)
 
         self.info['timestep'] = self.timestep
         self.info['episode_no'] = self.episode_no
         self.info['rank'] = self.rank
 
         if action >= 0:
-
             # act
             action = {'action': action}
-            # action = {'action': 0}
-
-
-
             obs, rew, done, info = super().step(action)
-
-            # preprocess obs
-            # import time
-            # t_s = time.time()
             obs = self._preprocess_obs(obs,  info['goal_cat_id']) 
-            # print("mask rcnn", time.time() - t_s)
 
             self.last_action = action['action']
             self.obs = obs
             self.info = info
-
-            if (self.args.visualize or self.args.print_images) and (self.episode_no-1) % 3==0:
-                # print(self.info)
-                self._write_statistic(self.info)
 
             self.info['g_reward'] += rew
 
@@ -435,19 +387,6 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
         return state
 
-    # def _preprocess_depth(self, depth, min_d, max_d):
-    #     depth = depth[:, :, 0] * 1
-
-    #     for i in range(depth.shape[1]):
-    #         depth[:, i][depth[:, i] == 0.] = depth[:, i].max()
-
-    #     mask2 = depth > 0.99
-    #     depth[mask2] = 0.
-
-    #     mask1 = depth == 0
-    #     depth[mask1] = 100.0
-    #     depth = min_d * 100.0 + depth * max_d * 100.0
-    #     return depth
 
     def _preprocess_depth(self, depth, min_d, max_d):
         depth = depth[:, :, 0] * 1
@@ -461,14 +400,12 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         return depth
 
 
-
     def _get_sem_pred(self, rgb, depth, cat_goal):
 
         semantic_pred, sem_entropy, sem_goal_prob = self.sem_pred_model.get_prediction(rgb, depth, cat_goal)
         self.rgb_vis = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
 
         return semantic_pred, sem_entropy, sem_goal_prob
-
 
 
     def _write_statistic(self, info):
@@ -487,12 +424,6 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
             f = open(fn, "a")  
             f.write('{0:10} : {1:7f}, {2:10} : {3:7f}, {4:10} : {5:7f} \n'.format("distance_to_goal", info['distance_to_goal'], "softspl", info['softspl'], "success", info['success']) )
             f.close()
-            # self.info['distance_to_goal'] = dist
-            # self.info['spl'] = spl
-            # self.info['softspl'] = softspl
-            # self.info['success'] = success
-
-            # cv2.imwrite(fn, self.vis_image)
 
 
 
@@ -505,8 +436,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
         goal = inputs['goal']
         sem_map = inputs['sem_map_pred']
-        # print("sem_map",sem_map)
-        # print("sem_map", sem_map.shape)
+
 
         gx1, gx2, gy1, gy2 = int(gx1), int(gx2), int(gy1), int(gy2)
 
@@ -566,7 +496,6 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         return self.vis_image
 
     def _visualize_gif(self, map_img, action):
-        # print("===================== gif save img {0}_{1}==========================".format(self.episode_no, self.timestep ))
         args = self.args
         dump_dir = "{}/dump/{}/".format(args.dump_location,
                                         args.exp_name)
@@ -591,7 +520,6 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
                 visualize_img_list.clear()
 
     def _visualize_img(self, map_img, action):
-        print("===================== map img {0}_{1}==========================".format(self.episode_no, self.timestep ))
         args = self.args
         dump_dir = "{}/dump/{}/".format(args.dump_location,
                                         args.exp_name)

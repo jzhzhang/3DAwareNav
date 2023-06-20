@@ -2,4 +2,3 @@ python main.py --sim_gpu_id 0  --sem_gpu_id "cuda:0" --num_processes 11 --sim_gp
 --load_2d /home/jiazhaozhang/project/navigation/habitat-challenge/periodic_590000.pth
 --load_3d /DATA/disk1/epic/jiazhaozhang/navigation_data/new_tmp/dump/exp_3d_policy_mp-12-09-01:41:22/periodic_3d_420000.pth
 
-# python main.py --auto_gpu_config 0 -n 1  --sem_gpu_id "cuda:2"  --sim_gpu_id "1,2,2,2"  --policy_gpu_id "cuda:1"   --split val --backbone_2d  "rednet" --stop_policy "3D"  --print_images 1  -d ./tmp --exp_name exp_kl   --save_periodic 10000

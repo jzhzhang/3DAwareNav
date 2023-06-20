@@ -33,35 +33,6 @@ scenes["train"] = [
     'Woodbine',
 ]
 
-# scenes["train"] = [
-#     'Beechwood',
-#     'Allensville',
-#     'Benevolence',
-#     'Coffeen',
-#     'Cosmos',
-#     'Forkland',
-#     'Hanson',
-#     'Hiteman',
-#     'Klickitat',
-#     'Lakeville',
-#     'Leonardo',
-#     'Lindenwood',
-#     'Marstons',
-#     'Merom',
-#     'Mifflinburg',
-#     'Newfields',
-#     'Onaga',
-#     'Pinesdale',
-#     'Pomaria',
-#     'Ranchester',
-#     'Shelbyville',
-#     'Stockman',
-#     'Tolstoy',
-#     'Wainscott',
-#     'Woodbine',
-# ]
-
-
 
 scenes["val"] = [
     'Collierville',
@@ -91,9 +62,6 @@ coco_categories = {
 
 
 
-
-
-
 coco_index_mapping_array = [56,
                             57,
                             58,
@@ -120,68 +88,6 @@ coco_categories_mapping = {
     57: 5,  # couch
 }
 
-# coco_categories_mapping = {
-#     56: 0,  # chair
-#     57: 1,  # couch
-#     58: 2,  # potted plant
-#     59: 3,  # bed
-#     61: 4,  # toilet
-#     62: 5,  # tv
-#     60: 6,  # dining-table
-#     69: 7,  # oven
-#     71: 8,  # sink
-#     72: 9,  # refrigerator
-#     73: 10,  # book
-#     74: 11,  # clock
-#     75: 12,  # vase
-#     41: 13,  # cup
-#     39: 14,  # bottle
-# }
-
-# color_palette = [
-#     1.0, 1.0, 1.0,
-#     0.6, 0.6, 0.6,
-#     0.95, 0.95, 0.95,
-#     0.96, 0.36, 0.26,
-#     0.12156862745098039, 0.47058823529411764, 0.7058823529411765,
-#     0.9400000000000001, 0.7818, 0.66,
-#     0.9400000000000001, 0.8868, 0.66,
-#     0.8882000000000001, 0.9400000000000001, 0.66,
-#     0.7832000000000001, 0.9400000000000001, 0.66,
-#     0.6782000000000001, 0.9400000000000001, 0.66,
-#     0.66, 0.9400000000000001, 0.7468000000000001,
-#     0.66, 0.9400000000000001, 0.8518000000000001,
-#     0.66, 0.9232, 0.9400000000000001,
-#     0.66, 0.8182, 0.9400000000000001,
-#     0.66, 0.7132, 0.9400000000000001,
-#     0.7117999999999999, 0.66, 0.9400000000000001,
-#     0.8168, 0.66, 0.9400000000000001,
-#     0.9218, 0.66, 0.9400000000000001,
-#     0.9400000000000001, 0.66, 0.8531999999999998,
-#     0.9400000000000001, 0.66, 0.748199999999999]
-
-
-# color_palette_array = np.asarray([
-#     [1.0, 1.0, 1.0],
-#     [0.6, 0.6, 0.6],
-#     [0.95, 0.95, 0.95],
-#     [0.96, 0.36, 0.26],
-#     [0.12156862745098039, 0.47058823529411764, 0.7058823529411765],
-#     [0.9400000000000001, 0.7818, 0.66],
-#     [0.9400000000000001, 0.8868, 0.66],
-#     [0.8882000000000001, 0.9400000000000001, 0.66],
-#     [0.7832000000000001, 0.9400000000000001, 0.66],
-#     [0.6782000000000001, 0.9400000000000001, 0.66],
-#     [0.66, 0.9400000000000001, 0.7468000000000001],
-#     [0.66, 0.9400000000000001, 0.8518000000000001],
-#     [0.66, 0.9232, 0.9400000000000001],
-#     [0.66, 0.8182, 0.9400000000000001],
-#     [0.66, 0.7132, 0.9400000000000001],
-#     [0.7117999999999999, 0.66, 0.9400000000000001],
-#     [0.8168, 0.66, 0.9400000000000001],
-#     [0.9218, 0.66, 0.9400000000000001],
-#     [0.9400000000000001, 0.66, 0.8531999999999998],
-#     [0.9400000000000001, 0.66, 0.748199999999999]])
 
 
 if args.dataset == "hm3d":
@@ -316,47 +222,6 @@ mpcat40_labels = [
 ]
 
 
-# habitat_labels = {
-#             # 'background': 0,
-#             'chair': 0, #g
-#             'bed': 1, #g
-#             'plant':2, #b
-#             'toilet':3, # in resnet
-#             'tv_monitor':4, # in resnet
-#             'sofa':5, #g
-#             'cabinet':6, #g
-#             'chest_of_drawers':7, #b in resnet
-#             'picture':8, #g
-#             'sink':9, #g
-#             'cushion':10, #g
-#             'stool':11, #b
-#             'towel':12, #b in resnet
-#             'table':13, #g
-#             'shower':14, #b
-#             'bathtub':15 #b in resnet
-# }
-
-
-
-
-# HM_semantic_name_2_id = {
-#     "chair": 0,
-#     "bed": 1,
-#     "plant": 2,
-#     "toilet": 3,
-#     "tv_monitor": 4,
-#     "sofa": 5
-# }
-
-# HM_semantic_name_2_id = {
-#     "chair": 0,
-#     "bed": 1,
-#     "plant": 2,
-#     "toilet": 3,
-#     "tv_monitor": 4,
-#     "sofa": 5
-# }
-
 
 
 mp3d_habitat_labels = {
@@ -395,29 +260,6 @@ hm3d_habitat_labels = {
             'background':6, #background
 }
 
-# habitat_labels = {
-#             # 'background': 0,
-#             'chair': 0, #g
-#             'bed': 1, #g
-#             'plant':2, #b
-#             'toilet':3, # in resnet
-#             'tv_monitor':4, # in resnet
-#             'sofa':5,
-#             'cabinet':6, #background
-# }
-
-
-# fourty221_ori = {}
-# # twentyone240 = {}
-# for i in range(len(mpcat40_labels)):
-#     lb = mpcat40_labels[i]
-#     if lb in habitat_labels.keys():
-#         fourty221_ori[i] = habitat_labels[lb]
-#         # twentyone240[habitat_labels[lb]] = i
-# print("habitat_labels",habitat_labels)
-# print(fourty221_ori)
-# print(len(fourty221_ori))
-# fourty221 = copy.deepcopy(fourty221_ori)
 
 
 def get_habitat_labels(data_name):

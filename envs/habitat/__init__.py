@@ -6,7 +6,7 @@ import torch
 from habitat.config.default import get_config as cfg_env
 # from habitat.datasets.pointnav.pointnav_dataset import PointNavDatasetV1
 from habitat.datasets.object_nav.object_nav_dataset import ObjectNavDatasetV1
-from habitat import Config, Env, RLEnv, VectorEnv, make_dataset
+from habitat import Env, RLEnv, VectorEnv, make_dataset
 
 from agents.sem_exp import Sem_Exp_Env_Agent
 from .objectgoal_env import ObjectGoal_Env
@@ -15,14 +15,13 @@ from .utils.vector_env import VectorEnv
 
 
 def make_env_fn(args, config_env, rank):
-    print("===========DATASET=========", config_env.DATASET)
+    # print("===========DATASET=========", config_env.DATASET)
     # print("===========DATASET TYPE=========", config_env.DATASET)
 
     dataset = make_dataset(config_env.DATASET.TYPE, config=config_env.DATASET)
     config_env.defrost()
     config_env.SIMULATOR.SCENE = dataset.episodes[0].scene_id
     config_env.freeze()
-    print("dataset",dataset)
     if args.agent == "sem_exp":
         env = Sem_Exp_Env_Agent(args=args, rank=rank,
                                 config_env=config_env,
@@ -39,15 +38,11 @@ def make_env_fn(args, config_env, rank):
 
 
 def _get_scenes_from_folder(content_dir):
-    # scene_dataset_ext = ".glb.json.gz"
     scene_dataset_ext = ".json.gz"
 
 
     scenes = []
     for filename in os.listdir(content_dir):
-
-        # if "Allensville" in filename or "Benevolence" in filename or "Beechwood" in filename:
-        #     continue
 
         if filename.endswith(scene_dataset_ext):
             scene = filename[: -len(scene_dataset_ext)]

@@ -203,13 +203,7 @@ class RedNet(nn.Module):
 
         # block 1
         x = self.layer1(x)
-        # debug_tensor('post1', depth)
-        # for i, mod in enumerate(self.layer1_d):
-        #     depth = mod(depth)
-        #     debug_tensor(f'post1d-{i}', depth)
-
         depth = self.layer1_d(depth)
-        # debug_tensor('post1d', depth)
 
         fuse1 = x + depth
         # block 2
@@ -266,13 +260,8 @@ class RedNet(nn.Module):
     def forward(self, rgb, depth):
 
         fuses = self.forward_downsample(rgb, depth)
-
-        # We only need predictions.
-        # features_encoder = fuses[-1]
-        # scores, features_lastlayer = self.forward_upsample(*fuses)
         scores, *_ = self.forward_upsample(*fuses)
-        # debug_tensor('scores', scores)
-        # return features_encoder, features_lastlayer, scores
+
         return scores
 
 
@@ -368,13 +357,8 @@ class BatchNormalize(nn.Module):
         self.std = torch.tensor(std, device=device)[None, :, None, None]
 
     def forward(self, x):
-        # mean = torch.tensor(self.mean, device=x.device)
-        # std = torch.tensor(self.std, device=x.device)
-        # mean = self.mean[None, :, None, None]
-        # std = self.std[None, :, None, None]
         return (x - self.mean) / self.std
-        # x.sub_(self.mean).div_(self.std)
-        # return x
+
 
 class RedNetResizeWrapper(nn.Module):
     def __init__(self, device, resize=True, stabilize=False):
@@ -416,12 +400,10 @@ class RedNetResizeWrapper(nn.Module):
         rgb = self.semmap_rgb_norm(rgb)
 
         depth_clip = (depth < 1.0).squeeze(1)
-        # depth_clip = ((depth < 1.0) & (depth > 0.0)).squeeze(1)
         depth = self.semmap_depth_norm(depth)
         with torch.no_grad():
             scores = self.rednet(rgb, depth) # 1 * 40 * 480 * 640
             pred = (torch.max(scores, 1)[1] ) # B x 480 x 640
-            #print("pred shape",pred,pred.shape)
             return scores, pred[0]
 
         # exit if running this line
@@ -429,9 +411,7 @@ class RedNetResizeWrapper(nn.Module):
 
         print("[rednet1] weired running points!!!!")
         if self.stabilize: # downsample tiny
-            # Mask out out of depth samples
             pred[~depth_clip] = -1 # 41 is UNK in MP3D, but hab-sim renders with -1
-            # pred = F.interpolate(pred.unsqueeze(1), (15, 20), mode='nearest').squeeze(1)
         if self.resize:
             pred = F.interpolate(pred.unsqueeze(1), (og_h, og_w), mode='nearest')
 
@@ -440,13 +420,11 @@ class RedNetResizeWrapper(nn.Module):
 
 def draw_sem_img(sem_img_channels, sem_mask, rgb, sem_entropy, sem_prob, output_path):
 
-    # sem_img_channels_cpu = sem_img_channels.clone().cpu().numpy()
     sem_mask_cpu = sem_mask.clone().cpu().numpy()
     fig = plt.figure(figsize=(24, 24))
     columns = 3
     rows = 5
     for i in range(0, 6):
-        # img = np.random.randint(10, size=(h,w))
         fig.add_subplot(rows, columns, i+1)
         plt.imshow(sem_img_channels[:, :, i])
 
@@ -473,9 +451,6 @@ def load_rednet(device, ckpt="", resize=True, stabilize=False):
     model = RedNetResizeWrapper(device, resize=resize, stabilize=stabilize).to(device)
 
     print("=> loading RedNet checkpoint '{}'".format(ckpt))
-    # if device.type == 'cuda':
-    #     checkpoint = torch.load(ckpt, map_location='cpu')
-    # else:
     checkpoint = torch.load(ckpt, map_location=lambda storage, loc: storage)
 
     state_dict = checkpoint['model_state']
@@ -503,28 +478,16 @@ class SemanticPredRedNet():
 
     def get_prediction(self, img, depth, cat_goal):
         args = self.args
-        #image_list = []
         img = img[np.newaxis, :, :, :]
         depth = depth[np.newaxis, :, :, :]
-        #print("input shape is ",img.shape)
-        #print(self.args.device)
+
         img = torch.from_numpy(img).float().to(self.args.sem_gpu_id)
         depth = torch.from_numpy(depth).float().to(self.args.sem_gpu_id)
         output, mask = self.segmentation_model(img,depth)
-        # print("mask", mask)
-        # print("mask.shape", mask.shape)
-        
-        # print("output", output)
-        # print("output.shape", output.shape)
-
-
-        #print("output shape is",output.shape)
         output = output[0] # 40*480*640
-        # output = output *0.1
-        # output[output<self.threshold] = 0 #0.9: 30 1.1: 26
+
 
         #=================entropy================
-        # print("direct output semantic", output.shape)
         semantic_pred = torch.nn.functional.softmax(output, dim=0).permute(1,2,0).cpu().numpy()
         entropy_tmp = -semantic_pred*np.log(semantic_pred)
         sem_entropy = np.sum(entropy_tmp, axis=2)
@@ -559,86 +522,4 @@ class SemanticPredRedNet():
         self.gt_mask = gt_mask
         self.goal_cat = goal_cat
 
-# class QuickSemanticPredRedNet():
-
-#     def __init__(self, args):
-#         self.segmentation_model = load_rednet(args.device,ckpt = args.checkpt, resize = True)
-#         self.segmentation_model.eval()
-#         self.args = args
-#         self.threshold = 0.7
-#         self.all_labels = set()
-#         self.gt_mask = None
-
-#     def get_conflict(self,output,goal_cat,ori_goal):
-#         output = torch.clone(output)
-#         output[goal_cat] *= 0
-#         for i in range(40):
-#             if i not in fourty221.keys():
-#                 output[i] *= 0
-#             else:
-#                 j = fourty221[i]
-#                 if ori_goal in compatible_dict.keys() and j in compatible_dict[ori_goal]:
-#                     output[i] *= 0
-#         output,_ = torch.max(output,dim = 0)
-#         output *= 0.1
-#         output[output < 0.9] = 0
-#         return output.cpu().numpy()
-#     #only care about objects in blacklist
-#     def get_black_white_list(self, output,goal_cat,ori_goal,black_list):
-#         if ori_goal not in black_list.keys():
-#             return np.zeros(output[0].shape)
-#         siz = len(black_list[ori_goal])
-#         ans = torch.zeros((siz,output.shape[1],output.shape[2])).to(self.args.device)
-#         id = 0
-#         for i in black_list[ori_goal]:
-#             ans[id] = torch.clone( output[twentyone240[i]])
-#             id += 1
-
-
-#         ans, _ = torch.max(ans, dim=0)
-#         ans *= 0.1
-#         ans[ans < 0.9] = 0
-#         return ans.cpu().numpy()
-
-#     def get_prediction(self, img,depth,goal_cat):
-#         ori_goal = goal_cat
-#         goal_cat = twentyone240[goal_cat]
-#         args = self.args
-#         #image_list = []
-#         img = img[np.newaxis, :, :, :]
-#         depth = depth[np.newaxis, :, :, :]
-#         #print("input shape is ",img.shape)
-#         #print(self.args.device)
-#         img = torch.from_numpy(img).float().to(self.args.device)
-#         depth = torch.from_numpy(depth).float().to(self.args.device)
-#         output, mask = self.segmentation_model(img,depth)
-#         #print("output shape is",output.shape)
-#         output = output[0]
-#         output[goal_cat] *= 0.1
-#         max_score = torch.max(output[goal_cat]) - 0.05
-#         if self.threshold > max_score:
-#             max_score = self.threshold
-
-
-#         output[goal_cat][output[goal_cat] < max_score] = 0
-
-#         semantic_input = np.zeros((img.shape[1], img.shape[2], 5 + self.args.use_gt_mask ))
-#         semantic_input[:,:,0] = output[goal_cat].cpu().numpy()
-#         if self.gt_mask is not None:
-#             semantic_input[:,:,4] = self.gt_mask
-#         if self.args.record_conflict == 1:
-#             semantic_input[:,:,1] = self.get_conflict(output,goal_cat,ori_goal)
-#         semantic_input[:,:,2] = self.get_black_white_list(output,goal_cat,ori_goal,black_list)
-#         semantic_input[:,:,3] = self.get_black_white_list(output,goal_cat,ori_goal,white_list)
-#         return semantic_input
-
-#     def set_gt_mask(self,gt_mask):
-#         self.gt_mask = gt_mask
-
-
-# def compress_sem_map(sem_map):
-#     c_map = np.zeros((sem_map.shape[1], sem_map.shape[2]))
-#     for i in range(sem_map.shape[0]):
-    #     c_map[sem_map[i] > 0.] = i + 1
-    # return c_map
 

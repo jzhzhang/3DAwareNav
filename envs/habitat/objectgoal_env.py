@@ -117,37 +117,9 @@ class ObjectGoal_Env(habitat.RLEnv):
 
         args = self.args
         self.scene_path = self.habitat_env.sim.config.sim_cfg.scene_id
-
         self.scene_name = self.scene_path.split("/")[-1].split(".")[0]
-
-        # if self.scene_path != self.last_scene_path:
-        #     episodes_file = self.episodes_dir + \
-        #         "content/{}.json.gz".format(self.scene_name)
-
-        #     print("Loading episodes from: {}".format(episodes_file))
-        #     with gzip.open(episodes_file, 'r') as f:
-        #         self.eps_data = json.loads(
-        #             f.read().decode('utf-8'))["episodes"]
-
-        #     self.eps_data_idx = 0
-        #     self.last_scene_path = self.scene_path
-        #     print("Changing scene: {}/{}".format(self.rank, self.scene_name))
-
-
-        # Load episode info
-        # self.episode1 = self.eps_data[int(self.habitat_env.current_episode.episode_id)]
         self.episode = self.habitat_env.current_episode
         self.episode_len = len(self.habitat_env.episodes)
-
-        # print("episode============", self.habitat_env.sim.config.sim_cfg)
-        # print("episode============", self.habitat_env.sim.config.sim_cfg.scene_id)
-        print("episode_id ============", self.habitat_env.current_episode.episode_id)
-        print("scene_id ============", self.habitat_env.current_episode.scene_id)
-        print("self.episode_len ============", self.episode_len)
-
-        # episode = self.habitat_env.current_episode.info
-        # print("episode ============", self.habitat_env.current_episode)
-
 
         goal_name = self.episode.object_category
         goal_idx = self.habitat_labels[goal_name]
@@ -181,10 +153,6 @@ class ObjectGoal_Env(habitat.RLEnv):
             new_scene = True
             self.episode_no = 0
 
-
-
-        print("self.info['repeat']", self.info['repeat'])
-
         self.episode_no += 1
 
         # Initializations
@@ -193,18 +161,11 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.path_length = 1e-5
         self.trajectory_states = []
 
-
-        print("self.scene_count===", self.scene_count)
-        print("self len(self.config_env.DATASET.CONTENT_SCENES)", len(self.config_env.DATASET.CONTENT_SCENES))
-
-        self.scene_path = self.habitat_env.sim.config.sim_cfg.scene_id
-
         if new_scene:
             self.scene_count += 1
             if self.scene_count == len(self.config_env.DATASET.CONTENT_SCENES):
                 self.info['repeat'] = True
             new_scene = False
-
 
 
         rgb = obs['rgb'].astype(np.uint8)
@@ -218,10 +179,9 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.info['current_pose'] = self.get_sim_location()
         self.info['goal_cat_id'] = self.goal_idx
         self.info['goal_name'] = self.goal_name
-        self.info['scene_id'] = self.habitat_env.sim.config.sim_cfg.scene_id
-        self.info['episode_id'] = self.habitat_env.sim.config.sim_cfg.episode_id
+        self.info['scene_id'] = self.habitat_env.current_episode.scene_id
+        self.info['episode_id'] = self.habitat_env.current_episode.episode_id
 
-        # self.info['episode_idx'] = self. 
 
         return state, self.info
 
@@ -268,9 +228,6 @@ class ObjectGoal_Env(habitat.RLEnv):
 
             if self.timestep < args.max_episode_length-1:
                 self.info['agent_success'] = 1
-            # print("dist", dist)
-            # print("spl", spl)
-            # print("success", success)
         else:
             spl, softspl, success, dist = self.get_metrics()
             self.info['distance_to_goal'] = dist
@@ -279,8 +236,6 @@ class ObjectGoal_Env(habitat.RLEnv):
             self.info['success'] = success                
             self.info['agent_success'] = agent_success                
 
-            # print("success!!!")
-            # exit(0)
 
 
         rgb = obs['rgb'].astype(np.uint8)
@@ -315,30 +270,13 @@ class ObjectGoal_Env(habitat.RLEnv):
                         from the success threshold boundary in meters.
                         (See https://arxiv.org/pdf/2007.00643.pdf)
         """
-        # curr_loc = self.sim_continuous_to_sim_map(self.get_sim_location())
 
-
-
-
-        # print("goals", self.episode)
-
-
-
-        # print("metrics",self._env.get_metrics())
         dist = self._env.get_metrics()["distance_to_goal"]
         softspl = self._env.get_metrics()["softspl"]
         success = self._env.get_metrics()["success"]
         spl = self._env.get_metrics()["spl"]
 
-        # print（）
-        # print("success ",success)
 
-        # print("spl ",spl)
-        # if dist < 0.2:
-        #     success = 1
-        # else:
-        #     success = 0
-        # spl = min(success * self.starting_distance / self.path_length, 1)
         return spl, softspl, success, dist
 
     def get_done(self, observations):
@@ -383,5 +321,5 @@ class ObjectGoal_Env(habitat.RLEnv):
         dx, dy, do = pu.get_rel_pose_change(
             curr_sim_pose, self.last_sim_location)
         self.last_sim_location = curr_sim_pose
-        # print("dx dy do", dx, dy ,do)
+        
         return dx, dy, do

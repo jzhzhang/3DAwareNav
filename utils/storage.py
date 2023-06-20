@@ -179,13 +179,8 @@ class RolloutStorage(object):
                 if self.has_extras:
                     extras.append(self.extras[:-1, ind])
 
-            # These are all tensors of size (T, N, ...)
             obs_map = torch.stack(obs_map, 1)
             obs_points = torch.stack(obs_points, 1)
-
-
-
-
             actions = torch.stack(actions, 1)
             value_preds = torch.stack(value_preds, 1)
             returns = torch.stack(returns, 1)
@@ -212,11 +207,11 @@ class RolloutStorage(object):
             }
 
 
-class GlobalRolloutStorage(RolloutStorage):
+class Explore_GlobalRolloutStorage(RolloutStorage):
 
     def __init__(self, num_steps, num_processes, obs_map_shape, obs_points_shape, action_space,
                  rec_state_size, extras_size):
-        super(GlobalRolloutStorage, self).__init__(
+        super(Explore_GlobalRolloutStorage, self).__init__(
             num_steps, num_processes, obs_map_shape, obs_points_shape, action_space, rec_state_size)
         self.extras = torch.zeros((num_steps + 1, num_processes, extras_size),
                                   dtype=torch.long)
@@ -226,7 +221,7 @@ class GlobalRolloutStorage(RolloutStorage):
     def insert(self, obs_map, obs_points, rec_states, actions, action_log_probs, value_preds,
                rewards, masks, extras):
         self.extras[self.step + 1].copy_(extras)
-        super(GlobalRolloutStorage, self).insert(
+        super(Explore_GlobalRolloutStorage, self).insert(
             obs_map, obs_points, rec_states, actions,
             action_log_probs, value_preds, rewards, masks)
 
@@ -244,7 +239,6 @@ class RolloutStorage_3d(object):
             self.n_actions = action_space.shape[0]
             action_type = torch.float32
 
-        # self.obs_map = torch.zeros(num_steps + 1, num_processes, *map_obs_shape)
         self.obs_points = torch.zeros(num_steps + 1, num_processes, *points_obs_shape)
 
 
@@ -264,7 +258,6 @@ class RolloutStorage_3d(object):
         self.extras_size = None
 
     def to(self, device):
-        # self.obs_map = self.obs_map.to(device)
 
         self.obs_points = self.obs_points.to(device)
 
@@ -283,8 +276,6 @@ class RolloutStorage_3d(object):
                rewards, masks):
 
         self.obs_points[self.step + 1].copy_(obs_points)
-
-        # self.rec_states[self.step + 1].copy_(rec_states)
         self.actions[self.step].copy_(actions.view(-1, self.n_actions))
         self.action_log_probs[self.step].copy_(action_log_probs)
         self.value_preds[self.step].copy_(value_preds)
@@ -392,13 +383,8 @@ class RolloutStorage_3d(object):
                 if self.has_extras:
                     extras.append(self.extras[:-1, ind])
 
-            # These are all tensors of size (T, N, ...)
-            # obs_map = torch.stack(obs_map, 1)
+
             obs_points = torch.stack(obs_points, 1)
-
-
-
-
             actions = torch.stack(actions, 1)
             value_preds = torch.stack(value_preds, 1)
             returns = torch.stack(returns, 1)
@@ -409,9 +395,7 @@ class RolloutStorage_3d(object):
                 extras = torch.stack(extras, 1)
 
             yield {
-                # 'obs_map': _flatten_helper(T, N, obs_map),
                 'obs_points': _flatten_helper(T, N, obs_points),
-
                 'actions': _flatten_helper(T, N, actions),
                 'value_preds': _flatten_helper(T, N, value_preds),
                 'returns': _flatten_helper(T, N, returns),
@@ -425,11 +409,12 @@ class RolloutStorage_3d(object):
             }
 
 
-class GlobalRolloutStorage_3d(RolloutStorage_3d):
+
+class Identify_GlobalRolloutStorage(RolloutStorage_3d):
     
     def __init__(self, num_steps, num_processes, obs_points_shape, action_space,
                  rec_state_size, extras_size):
-        super(GlobalRolloutStorage_3d, self).__init__(
+        super(Identify_GlobalRolloutStorage, self).__init__(
             num_steps, num_processes, obs_points_shape, action_space, rec_state_size)
         self.extras = torch.zeros((num_steps + 1, num_processes, extras_size),
                                   dtype=torch.long)
@@ -439,6 +424,6 @@ class GlobalRolloutStorage_3d(RolloutStorage_3d):
     def insert(self, obs_points, rec_states, actions, action_log_probs, value_preds,
                rewards, masks, extras):
         self.extras[self.step + 1].copy_(extras)
-        super(GlobalRolloutStorage_3d, self).insert(
+        super(Identify_GlobalRolloutStorage, self).insert(
             obs_points, rec_states, actions,
             action_log_probs, value_preds, rewards, masks)

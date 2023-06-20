@@ -12,10 +12,6 @@ class log_writter:
     def add_train_rew_scalar(self, name, data, n):
         self.writer.add_scalar(name+"/reward/train", data ,n)
 
-
-    # def add_train_rew_scalar(self, name, data, n):
-    #     self.writer.add_scalar(name+"/reward/train", data ,n)
-
     def add_test_loss_scalar(self, name, data, n):
         self.writer.add_scalar(name+"/loss/test", data ,n)
 
