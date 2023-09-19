@@ -954,10 +954,10 @@ def main():
             if len(g_episode_rewards) >= 1000 and \
                     (np.mean(g_episode_rewards) >= best_g_reward) \
                     and not args.eval:
-                torch.save(g_policy.state_dict(),
+                torch.save(explore_policy.state_dict(),
                            os.path.join(log_dir, "model_best_explore.pth"))
 
-                torch.save(g_policy_3d.state_dict(),
+                torch.save(identify_policy.state_dict(),
                            os.path.join(log_dir, "model_best_identify.pth"))
                 best_g_reward = np.mean(g_episode_rewards)
 
