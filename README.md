@@ -51,6 +51,13 @@ This is an open-source version, some functions have been rewritten to avoid cert
 If you have any questions, feel free to email Jiazhao Zhang at zhngjizh@gmail.com.
 
 
+## License
 
+ This work and the dataset are licensed under [CC BY-NC 4.0][cc-by-nc].
+
+ [![CC BY-NC 4.0][cc-by-nc-image]][cc-by-nc]
+
+ [cc-by-nc]: https://creativecommons.org/licenses/by-nc/4.0/
+ [cc-by-nc-image]: https://licensebuttons.net/l/by-nc/4.0/88x31.png
 
 
